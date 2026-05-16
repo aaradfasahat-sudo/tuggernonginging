@@ -21,7 +21,7 @@ try {
 } catch {} // fallback: built-in fetch default config
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 const SITE_DIR = __dirname;
 
 // ── 50+ realistic User-Agents ────────────────────────────────
