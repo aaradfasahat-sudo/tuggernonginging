@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>BlackMarket - Fasahat's Hub</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e8e9f0;font-family:Inter,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;overflow-x:hidden}
+
+#particles-canvas{position:fixed;inset:0;z-index:0;pointer-events:none}
+
+/* ── Animated background glows ── */
+.bg-glow{position:fixed;top:-30%;right:-20%;width:70vmax;height:70vmax;border-radius:50%;background:radial-gradient(circle,rgba(255,215,0,0.08),transparent 70%);pointer-events:none;z-index:0;animation:glowPulse 6s ease-in-out infinite}
+.bg-glow2{position:fixed;bottom:-30%;left:-20%;width:70vmax;height:70vmax;border-radius:50%;background:radial-gradient(circle,rgba(255,80,0,0.05),transparent 70%);pointer-events:none;z-index:0;animation:glowPulse 8s ease-in-out infinite reverse}
+.bg-glow3{position:fixed;top:50%;left:50%;width:80vmax;height:80vmax;border-radius:50%;background:radial-gradient(circle,rgba(100,0,255,0.04),transparent 70%);pointer-events:none;z-index:0;transform:translate(-50%,-50%);animation:glowPulse 10s ease-in-out infinite}
+@keyframes glowPulse{0%,100%{opacity:0.6;transform:scale(1)}50%{opacity:1;transform:scale(1.1)}}
+
+.container{max-width:720px;width:100%;padding:60px 24px;position:relative;z-index:1}
+
+/* ── Entrance animations ── */
+@keyframes fadeSlideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+@keyframes pulseGlow{0%,100%{box-shadow:0 0 20px rgba(255,215,0,0.15)}50%{box-shadow:0 0 40px rgba(255,215,0,0.3)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+
+.anim-fade{animation:fadeIn .8s ease-out forwards}
+.anim-slide{animation:fadeSlideUp .6s ease-out forwards;opacity:0}
+.anim-slide-d1{animation:fadeSlideUp .6s ease-out .1s forwards;opacity:0}
+.anim-slide-d2{animation:fadeSlideUp .6s ease-out .2s forwards;opacity:0}
+.anim-slide-d3{animation:fadeSlideUp .6s ease-out .3s forwards;opacity:0}
+.anim-slide-d4{animation:fadeSlideUp .6s ease-out .4s forwards;opacity:0}
+.anim-slide-d5{animation:fadeSlideUp .6s ease-out .5s forwards;opacity:0}
+.anim-slide-d6{animation:fadeSlideUp .6s ease-out .6s forwards;opacity:0}
+.anim-slide-d7{animation:fadeSlideUp .6s ease-out .7s forwards;opacity:0}
+
+.logo{width:64px;height:64px;margin:0 auto 24px;display:block;animation:float 4s ease-in-out infinite;filter:drop-shadow(0 0 20px rgba(255,215,0,0.3))}
+h1{text-align:center;font-size:42px;font-weight:900;text-transform:uppercase;letter-spacing:4px;background:linear-gradient(135deg,#ffd700,#ff8c00,#ffd700);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 3s linear infinite;margin-bottom:8px}
+.sub{text-align:center;color:rgba(255,255,255,0.4);font-size:14px;margin-bottom:32px}
+
+/* ── Gold divider ── */
+.divider{width:60px;height:3px;background:linear-gradient(90deg,transparent,#ffd700,transparent);margin:0 auto 40px;border-radius:2px}
+
+/* ── Invite section (FIRST) ── */
+.invite-section{background:rgba(255,255,255,0.02);border:1px solid rgba(255,215,0,0.15);border-radius:20px;padding:32px;margin-bottom:40px}
+.invite-section h2{font-size:22px;font-weight:800;color:#ffd700;margin-bottom:12px;text-align:center}
+.invite-section p{color:rgba(255,255,255,0.55);font-size:13px;line-height:1.6;text-align:center;margin-bottom:20px}
+.invite-highlight{background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,140,0,0.05));border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:16px;text-align:center;margin-bottom:24px}
+.invite-highlight .big{font-size:36px;font-weight:900;background:linear-gradient(135deg,#ffd700,#ff8c00);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.invite-highlight .small{font-size:13px;color:rgba(255,255,255,0.5);margin-top:4px}
+
+.invite-form-wrap{background:rgba(0,0,0,0.3);border:1px solid rgba(255,215,0,0.1);border-radius:16px;padding:16px;margin-top:16px;overflow:hidden;position:relative;min-height:200px;display:flex;align-items:center;justify-content:center}
+.invite-form-wrap .form-loader{color:rgba(255,255,255,0.2);font-size:13px;text-align:center}
+.invite-form-wrap iframe{width:100%;height:520px;border:none;border-radius:8px;display:none}
+.invite-form-wrap iframe.loaded{display:block}
+.invite-form-wrap .form-loader.hide{display:none}
+
+/* ── Warning ── */
+.warning-banner{display:flex;align-items:flex-start;gap:12px;background:rgba(255,50,50,0.06);border:1px solid rgba(255,50,50,0.2);border-radius:12px;padding:14px 18px;margin-top:20px}
+.warning-icon{font-size:20px;flex-shrink:0;margin-top:1px}
+.warning-text{font-size:12px;color:rgba(255,100,100,0.8);line-height:1.5}
+.warning-text strong{color:#ff6b6b}
+
+/* ── Section titles ── */
+.section-title{font-size:20px;font-weight:800;text-transform:uppercase;letter-spacing:2px;background:linear-gradient(135deg,#ffd700,#ff8c00);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+.section-title::before{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(255,215,0,0.3))}
+.section-title::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(255,215,0,0.3),transparent)}
+
+/* ── Feature grid ── */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:40px}
+.card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,215,0,0.12);border-radius:16px;padding:24px;transition:all .35s cubic-bezier(.4,0,.2,1);opacity:0;cursor:default}
+.card:hover{border-color:rgba(255,215,0,0.45);background:rgba(255,215,0,0.07);transform:translateY(-4px);box-shadow:0 12px 40px rgba(255,215,0,0.1)}
+.card-icon{font-size:28px;margin-bottom:12px;display:block}
+.card h3{font-size:14px;font-weight:700;color:#ffd700;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
+.card p{font-size:12px;color:rgba(255,255,255,0.5);line-height:1.5}
+
+/* ── Premium upsell ── */
+.full-card{grid-column:1/-1;text-align:center;background:linear-gradient(135deg,rgba(255,215,0,0.08),rgba(255,140,0,0.04));border-color:rgba(255,215,0,0.3);animation:pulseGlow 3s ease-in-out infinite}
+.price{font-size:48px;font-weight:900;background:linear-gradient(135deg,#ffd700,#ff8c00);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.price-sub{font-size:13px;color:rgba(255,255,255,0.4);margin-top:4px}
+.btn{display:inline-block;padding:14px 48px;border-radius:100px;font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:2px;cursor:pointer;border:none;transition:all .3s cubic-bezier(.4,0,.2,1);text-decoration:none}
+.btn-gold{background:linear-gradient(135deg,#ffd700,#ff8c00);color:#0a0a0f;box-shadow:0 4px 24px rgba(255,215,0,0.25)}
+.btn-gold:hover{transform:scale(1.06);box-shadow:0 8px 40px rgba(255,215,0,0.4)}
+.btn-outline{background:transparent;border:1.5px solid rgba(255,215,0,0.35);color:#ffd700}
+.btn-outline:hover{background:rgba(255,215,0,0.1);border-color:rgba(255,215,0,0.6);transform:scale(1.04)}
+
+/* ── Back link ── */
+.back{display:inline-flex;align-items:center;gap:8px;color:rgba(255,255,255,0.3);text-decoration:none;font-size:13px;margin-bottom:32px;transition:color .25s}
+.back:hover{color:#ffd700}
+
+@media(max-width:640px){.grid{grid-template-columns:1fr}.container{padding:40px 16px}h1{font-size:28px}.invite-section{padding:20px}.invite-highlight .big{font-size:28px}.invite-form-wrap iframe{height:380px}}
+</style>
+</head>
+<body>
+<canvas id="particles-canvas"></canvas>
+<div class="bg-glow"></div>
+<div class="bg-glow2"></div>
+<div class="bg-glow3"></div>
+<div class="container">
+  <a href="/" class="back anim-fade">&larr; Back to Hub</a>
+  <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='none' stroke='%23ffd700' stroke-width='3'/%3E%3Cpath d='M50 10 L55 40 L85 45 L60 65 L68 95 L50 78 L32 95 L40 65 L15 45 L45 40 Z' fill='%23ffd700' opacity='0.9'/%3E%3C/svg%3E" alt="" class="logo">
+  <h1>BlackMarket</h1>
+  <p class="sub">Exclusive premium content &amp; tools</p>
+  <div class="divider"></div>
+
+  <!-- ── Invite Section (FIRST) ── -->
+  <div class="section-title anim-slide-d1">Referral Program</div>
+  <div class="invite-section anim-slide-d2">
+    <h2>Invite &amp; Earn Free Premium</h2>
+    <p>Invite <strong>5 people</strong> to Fasahat's Hub and you'll receive <strong>21 days of Premium</strong> access completely free.</p>
+    <div class="invite-highlight">
+      <div class="big">Invite 5 People</div>
+      <div class="small">Get 21 Days Premium Free</div>
+    </div>
+    <p style="margin-bottom:8px">Each person you invite must fill out the form below so we can track your referrals:</p>
+    <div class="invite-form-wrap" id="formWrap">
+      <div class="form-loader" id="formLoader">Loading form...</div>
+      <iframe id="gfForm" src="https://docs.google.com/forms/d/e/1FAIpQLSfJXAzf2fDPmRlUFm2IeLdMZs-AyBcuF4r0Kghr8tC0u8f8ng/viewform?embedded=true" frameborder="0" marginheight="0" marginwidth="0" onload="document.getElementById('formLoader').classList.add('hide');this.classList.add('loaded')">Loading…</iframe>
+    </div>
+    <div class="warning-banner">
+      <span class="warning-icon">⚠️</span>
+      <div class="warning-text">
+        <strong>Fraud Prevention:</strong> If you cheat by vouching for yourself or claiming more than one person that you actually invited, <strong>you will be permanently banned</strong> from Fasahat's Hub with no appeal.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Feature Grid ── -->
+  <div class="section-title anim-slide-d3">Premium Features</div>
+  <div class="grid">
+    <div class="card anim-slide-d3">
+      <span class="card-icon">🎬</span>
+      <h3>150 Premium Movies</h3>
+      <p>Full library of premium movies unlocked instantly</p>
+    </div>
+    <div class="card anim-slide-d4">
+      <span class="card-icon">📺</span>
+      <h3>40 Premium TV Shows</h3>
+      <p>All premium television content at your fingertips</p>
+    </div>
+    <div class="card anim-slide-d4">
+      <span class="card-icon">🎮</span>
+      <h3>670+ Premium Games</h3>
+      <p>Full game library including exclusive titles</p>
+    </div>
+    <div class="card anim-slide-d5">
+      <span class="card-icon">🌐</span>
+      <h3>14 Premium Proxies</h3>
+      <p>Web proxies for unrestricted browsing</p>
+    </div>
+    <div class="card anim-slide-d5">
+      <span class="card-icon">🤖</span>
+      <h3>AI Tools</h3>
+      <p>Access to exclusive AI-powered features</p>
+    </div>
+    <div class="card anim-slide-d6">
+      <span class="card-icon">⚡</span>
+      <h3>Limited-Time Content</h3>
+      <p>Exclusive time-limited drops &amp; content</p>
+    </div>
+    <div class="card anim-slide-d6">
+      <span class="card-icon">📚</span>
+      <h3>Blooket Hack Guide</h3>
+      <p>Fishing Frenzy, Gold Quest &amp; Crypto Hack strategies</p>
+    </div>
+    <div class="card full-card anim-slide-d7">
+      <h3 style="margin-bottom:12px">Lifetime Access</h3>
+      <div class="price">$2.00 AUD</div>
+      <div class="price-sub">One-time payment, no recurring fees</div>
+      <a href="/" style="margin-top:20px" class="btn btn-gold" onclick="alert('Contact Fasahat to get premium');return false">Get Premium</a>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var c=document.getElementById('particles-canvas'),x=c.getContext('2d'),W,H,p=[],N=50;
+  function r(){W=c.width=window.innerWidth;H=c.height=window.innerHeight}
+  function P(){this.x=Math.random()*W;this.y=Math.random()*H;this.r=Math.random()*1.8+0.5;this.vx=(Math.random()-0.5)*0.35;this.vy=(Math.random()-0.5)*0.35;this.a=Math.random()*0.5+0.15}
+  function i(){p=[];for(var _=0;_<N;_++)p.push(new P())}
+  function d(){
+    x.clearRect(0,0,W,H);
+    var R=255,G=215,B=0;
+    p.forEach(function(q){
+      q.x+=q.vx;q.y+=q.vy;
+      if(q.x<0)q.x=W;if(q.x>W)q.x=0;if(q.y<0)q.y=H;if(q.y>H)q.y=0;
+      x.beginPath();x.arc(q.x,q.y,q.r,0,Math.PI*2);x.fillStyle='rgba('+R+','+G+','+B+','+q.a+')';x.fill()
+    });
+    for(var i=0;i<p.length;i++){for(var j=i+1;j<p.length;j++){var dx=p[i].x-p[j].x,dy=p[i].y-p[j].y,ds=Math.sqrt(dx*dx+dy*dy);if(ds<150){var al=(1-ds/150)*0.12;x.beginPath();x.moveTo(p[i].x,p[i].y);x.lineTo(p[j].x,p[j].y);x.strokeStyle='rgba(255,215,0,'+al+')';x.lineWidth=0.6;x.stroke()}}}
+    requestAnimationFrame(d)
+  }
+  window.addEventListener('resize',r);r();i();d();
+})();
+</script>
+</body>
+</html>

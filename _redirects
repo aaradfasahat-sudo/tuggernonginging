@@ -1,0 +1,12 @@
+# Proxy API
+/px          /.netlify/functions/px          200
+/suggestions /.netlify/functions/suggestions 200
+
+# Static pages
+/blackmarket /blackmarket.html                200
+/proxy       /proxy.html                      200
+/proxy1      /proxy1.html                     200
+/proxy2      /proxy2.html                     200
+
+# SPA catch-all
+/*           /index.html                      200

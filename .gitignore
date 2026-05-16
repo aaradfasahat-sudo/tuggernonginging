@@ -1,0 +1,9 @@
+node_modules/
+.cache/
+.agents/
+zipFile.zip
+*.log
+.env
+.env.*
+.DS_Store
+Thumbs.db
