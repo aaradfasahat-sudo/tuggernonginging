@@ -196,12 +196,38 @@ var _fe=window.fetch;window.fetch=function(i,o){try{if(typeof i==='string')i=tp(
 document.addEventListener('click',function(e){var a=e.target.closest('a[href]');if(!a)return;var h=a.getAttribute('href');if(!h||h.startsWith('#')||h.startsWith('javascript:'))return;try{var ab=new URL(h,location.href).href;if((ab.startsWith('http://')||ab.startsWith('https://'))&&ab.indexOf(P)===-1){e.preventDefault();location.href=P+encodeURIComponent(ab);}}catch(x){}},true);
 /* Form submit */
 document.addEventListener('submit',function(e){var f=e.target;if(!f)return;try{var fa=new URL(f.action||'',location.href).href;if(!fa.startsWith('http')||fa.indexOf(P)!==-1)return;e.preventDefault();var m=(f.method||'GET').toUpperCase(),d=new URLSearchParams(new FormData(f)).toString(),sep=fa.indexOf('?')>=0?'&':'?';if(m==='GET'){location.href=P+encodeURIComponent(fa+(d?sep+d:''));}else{location.href=P+encodeURIComponent(fa)+(d?'&_body='+encodeURIComponent(d):'');}}catch(x){}},true);
-/* pushState / replaceState — only rewrite cross-origin URLs */
-['pushState','replaceState'].forEach(function(fn){var orig=history[fn];history[fn]=function(st,ti,url){if(url!=null){try{var a=new URL(String(url),location.href).href;if((a.startsWith('http://')||a.startsWith('https://'))&&!a.startsWith(location.origin+'/')){url=P+encodeURIComponent(a);}}catch(e){}}return orig.call(this,st,ti,url);};});
+/* pushState / replaceState — resolve relative URLs against the UPSTREAM origin, not our proxy server.
+   Extract the real upstream URL from the current page's ?url= query param so that e.g.
+   pushState('/about') on a proxied duckduckgo.com page becomes /px?url=https://duckduckgo.com/about
+   instead of navigating to our server's /about route (which causes SPA double-render). */
+['pushState','replaceState'].forEach(function(fn){var orig=history[fn];history[fn]=function(st,ti,url){if(url!=null){try{var s=String(url);if(!s||s.startsWith('#')||s.startsWith(P))return orig.call(this,st,ti,url);var qm=location.search.match(/[?&]url=([^&]+)/);var base=qm?decodeURIComponent(qm[1]):null;if(base){var abs=new URL(s,base).href;if(abs.startsWith('http://') ||abs.startsWith('https://'))url=P+encodeURIComponent(abs);}else{var abs2=new URL(s,location.href).href;if((abs2.startsWith('http://')||abs2.startsWith('https://'))&&!abs2.startsWith(location.origin+'/'))url=P+encodeURIComponent(abs2);}}catch(e){}}return orig.call(this,st,ti,url);};});
 /* window.open */
 var _wo=window.open;window.open=function(u,n,f){if(typeof u==='string')u=tp(u);return _wo.call(this,u,n,f);};
 /* location.assign / replace */
 try{var _la=Location.prototype.assign;Location.prototype.assign=function(u){return _la.call(this,tp(String(u)));};var _lr=Location.prototype.replace;Location.prototype.replace=function(u){return _lr.call(this,tp(String(u)));};}catch(e){}
+/* Intercept HTMLImageElement / HTMLSourceElement / HTMLVideoElement src/poster setters
+   so dynamically-set image URLs (like YouTube thumbnails) get proxied too */
+(function(){
+  var tags=[['HTMLImageElement','src'],['HTMLImageElement','srcset'],['HTMLVideoElement','src'],['HTMLVideoElement','poster'],['HTMLSourceElement','src'],['HTMLSourceElement','srcset'],['HTMLScriptElement','src'],['HTMLLinkElement','href'],['HTMLIFrameElement','src']];
+  tags.forEach(function(t){
+    var proto=window[t[0]]&&window[t[0]].prototype;
+    if(!proto)return;
+    var d=Object.getOwnPropertyDescriptor(proto,t[1]);
+    if(!d||!d.set)return;
+    Object.defineProperty(proto,t[1],{get:d.get,set:function(v){
+      try{v=tp(String(v));}catch(e){}
+      return d.set.call(this,v);
+    },configurable:true,enumerable:d.enumerable});
+  });
+  /* Also intercept CSS backgroundImage / background */
+  var _ss=CSSStyleDeclaration.prototype.setProperty;
+  CSSStyleDeclaration.prototype.setProperty=function(p,v,pri){
+    if(typeof v==='string'&&(p==='background-image'||p==='background')&&v.indexOf('url(')!==-1){
+      v=v.replace(/url\(['"]?(https?:\/\/[^'")\s]+)['"]?\)/g,function(m,u){return 'url('+tp(u)+')';});
+    }
+    return _ss.call(this,p,v,pri);
+  };
+})();
 /* Block service workers — they hijack fetch and break the proxy */
 try{Object.defineProperty(navigator,'serviceWorker',{get:function(){return{register:function(){return Promise.resolve({scope:'/'});},getRegistrations:function(){return Promise.resolve([]);},addEventListener:function(){}};},configurable:true});}catch(e){}
 })();</script>`;
@@ -342,17 +368,19 @@ function buildUpstreamHeaders(clientReq, targetUrl, isRetry) {
     ...rh,
   };
 
-  // YouTube-specific: add client identity headers so the API/player responds correctly
+  // YouTube-specific: add client identity headers + consent cookie bypass
   if (isYouTube) {
     headers['x-youtube-client-name'] = '1';
     headers['x-youtube-client-version'] = '2.20240501.01.00';
     headers['x-origin'] = 'https://www.youtube.com';
     headers['Referer'] = 'https://www.youtube.com/';
     headers['Origin'] = 'https://www.youtube.com';
-    // Use sec-fetch headers that match a real navigation
     headers['Sec-Fetch-Site'] = 'same-origin';
     headers['Sec-Fetch-Mode'] = resourceType === 'document' ? 'navigate' : 'no-cors';
     headers['Sec-Fetch-Dest'] = resourceType === 'document' ? 'document' : (resourceType === 'script' ? 'script' : 'empty');
+    // Inject consent/SOCS cookies so YouTube doesn't redirect to consent.youtube.com
+    const ytConsentCookies = 'SOCS=CAESEwgDEgk0ODE3Nzk3MjkaAmVuIAEaBgiA_LyaBg; CONSENT=YES+cb.20210328-17-p0.en+FX+667; GPS=1; VISITOR_INFO1_LIVE=1; YSC=1';
+    headers['Cookie'] = headers['Cookie'] ? headers['Cookie'] + '; ' + ytConsentCookies : ytConsentCookies;
   }
 
   // DuckDuckGo: send proper search engine headers
@@ -371,6 +399,15 @@ function buildUpstreamHeaders(clientReq, targetUrl, isRetry) {
   if (!jarCookies && clientReq.headers['cookie']) headers['Cookie'] = clientReq.headers['cookie'];
 
   if (clientReq.headers['content-type']) headers['Content-Type'] = clientReq.headers['content-type'];
+
+  // Forward client-sent auth/API headers (YouTube sends these from its own JS)
+  const passthroughHeaders = ['authorization', 'x-goog-authuser', 'x-goog-visitor-id', 'x-goog-fieldmask',
+    'x-youtube-client-name', 'x-youtube-client-version', 'x-youtube-page-cl',
+    'x-youtube-page-label', 'x-youtube-utc-offset', 'x-youtube-time-zone',
+    'x-origin', 'x-requested-with'];
+  for (const h of passthroughHeaders) {
+    if (clientReq.headers[h] && !headers[h]) headers[h] = clientReq.headers[h];
+  }
 
   // Clean up undefined values
   for (const k of Object.keys(headers)) if (headers[k] === undefined) delete headers[k];
@@ -490,16 +527,14 @@ app.all('/px', async (req, res) => {
         return res.send(css);
       }
 
-      // JSON — rewrite URLs in strings
+      // JSON — pass through as-is; rewriting URLs inside JSON breaks YouTube/API responses
+      // Runtime XHR/fetch interceptors handle re-routing any navigations that follow.
       if (ct === 'application/json') {
-        let json = await response.text();
-        json = json.replace(/"(https?:\/\/[^"]+)"/g, (m, url) => {
-          try { new URL(url); return '"' + toProxyUrl(url, finalUrl) + '"'; } catch { return m; }
-        });
+        const buf = Buffer.from(await response.arrayBuffer());
         res.removeHeader('content-length');
         res.removeHeader('content-encoding');
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        return res.send(json);
+        return res.send(buf);
       }
 
       // JavaScript — light rewrite
