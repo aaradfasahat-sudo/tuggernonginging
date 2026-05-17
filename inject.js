@@ -3815,6 +3815,202 @@
     }
   }, 8000);
 
+  /* =========================================================
+     GAME PROGRESS SAVING
+     When signed in, syncs favorites + last-played + play time
+     to Firestore players/{uid} so progress is never lost.
+  ========================================================= */
+  (function () {
+    var _gpDebTimer = null;
+    var _gpPlayStart = null;
+    var _gpCurGame = null;
+
+    function _gpUser() { return window.__FIREBASE_USER__ || window.__USER__ || null; }
+
+    function _gpFbReady() {
+      return !!(window.db && window.fsSetDoc && window.fsDoc && window.fsGetDoc);
+    }
+
+    // ── Debounced favorites write ──────────────────────────
+    function _gpSaveFavs(favsArray) {
+      var user = _gpUser();
+      if (!user || !user.uid || !_gpFbReady()) return;
+      clearTimeout(_gpDebTimer);
+      _gpDebTimer = setTimeout(function () {
+        try {
+          window.fsSetDoc(
+            window.fsDoc(window.db, 'players', user.uid),
+            { gameFavorites: favsArray },
+            { merge: true }
+          );
+        } catch (e) {}
+      }, 1500);
+    }
+
+    // ── Load favorites from Firestore and merge with local ─
+    function _gpLoadFavs() {
+      var user = _gpUser();
+      if (!user || !user.uid || !_gpFbReady()) return;
+      window.fsGetDoc(window.fsDoc(window.db, 'players', user.uid))
+        .then(function (doc) {
+          if (!doc.exists()) return;
+          var remote = (doc.data() || {}).gameFavorites;
+          if (!Array.isArray(remote) || !remote.length) return;
+          var local = [];
+          try { local = JSON.parse(localStorage.getItem('fas_favorites') || '[]'); } catch {}
+          if (!Array.isArray(local)) local = [];
+          var merged = Array.from(new Set(remote.concat(local)));
+          // Only update if different — avoids infinite loop
+          if (JSON.stringify(merged) !== JSON.stringify(local)) {
+            try {
+              // Write directly without triggering our interceptor again
+              Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'fas_favorites', JSON.stringify(merged));
+              window.dispatchEvent(new StorageEvent('storage', { key: 'fas_favorites', newValue: JSON.stringify(merged) }));
+            } catch (e) {}
+          }
+        })
+        .catch(function () {});
+    }
+
+    // ── Intercept localStorage.setItem to catch favorites ─
+    var _origLSSet = Object.getPrototypeOf(localStorage).setItem;
+    try {
+      var _hooked = false;
+      Object.defineProperty(localStorage, 'setItem', {
+        configurable: true,
+        enumerable: false,
+        value: function (key, value) {
+          _origLSSet.call(localStorage, key, value);
+          if (key === 'fas_favorites' && !_hooked) {
+            var user = _gpUser();
+            if (user && user.uid) {
+              try { _gpSaveFavs(JSON.parse(value)); } catch {}
+            }
+          }
+        }
+      });
+    } catch (e) {}
+
+    // ── Record a game opening ──────────────────────────────
+    function _gpOnGameOpen(iframe) {
+      var src = iframe.src || '';
+      var hasSrcdoc = !!(iframe.srcdoc && iframe.srcdoc.length > 200);
+      if (!src && !hasSrcdoc) return;
+      if (src === 'about:blank' || src.includes(location.hostname)) return;
+      if (iframe.id && (iframe.id.startsWith('fas-pov-') || iframe.id === 'proxy-frame' || iframe.id === 'proxy-iframe')) return;
+
+      // Try to grab the game title from nearby heading
+      var title = '';
+      try {
+        var container = iframe.closest('[role="dialog"]') || iframe.parentElement;
+        for (var depth = 0; depth < 5 && container; depth++) {
+          var heading = container.querySelector('h1,h2,h3');
+          if (heading) { title = heading.textContent.trim(); break; }
+          container = container.parentElement;
+        }
+      } catch (e) {}
+      if (!title && src) {
+        try {
+          var parts = new URL(src).pathname.split('/').filter(Boolean);
+          title = (parts[parts.length - 1] || parts[0] || 'Game').replace(/[._-]+/g, ' ').replace(/\.html?$/i, '');
+        } catch (e) {}
+      }
+      if (!title) title = 'Game';
+
+      _gpCurGame = { title: title, url: src || 'srcdoc', ts: Date.now() };
+      _gpPlayStart = Date.now();
+
+      var user = _gpUser();
+      if (!user || !user.uid || !_gpFbReady()) return;
+      try {
+        window.fsSetDoc(
+          window.fsDoc(window.db, 'players', user.uid),
+          { lastPlayedGame: { title: title, url: _gpCurGame.url, timestamp: Date.now() } },
+          { merge: true }
+        );
+      } catch (e) {}
+    }
+
+    // ── Record play time when game iframe disappears ───────
+    function _gpOnGameClose() {
+      if (!_gpPlayStart || !_gpCurGame) return;
+      var elapsed = Math.round((Date.now() - _gpPlayStart) / 1000);
+      _gpPlayStart = null;
+      var game = _gpCurGame;
+      _gpCurGame = null;
+      if (elapsed < 5) return; // ignore accidental flicks
+
+      var user = _gpUser();
+      if (!user || !user.uid || !_gpFbReady()) return;
+
+      // Safe Firestore field key from game URL
+      var fieldKey = (game.url || 'unknown').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 80);
+
+      // Read current value then add elapsed (no FieldValue.increment needed)
+      window.fsGetDoc(window.fsDoc(window.db, 'players', user.uid))
+        .then(function (doc) {
+          var cur = 0;
+          if (doc.exists()) {
+            var pt = (doc.data() || {}).gamePlayTime || {};
+            cur = Number(pt[fieldKey] || 0);
+          }
+          var update = { gamePlayTime: {} };
+          update.gamePlayTime[fieldKey] = cur + elapsed;
+          try {
+            window.fsSetDoc(
+              window.fsDoc(window.db, 'players', user.uid),
+              update,
+              { merge: true }
+            );
+          } catch (e) {}
+        })
+        .catch(function () {});
+    }
+
+    // ── MutationObserver: detect game iframes ──────────────
+    var _gpMO = new MutationObserver(function (muts) {
+      for (var i = 0; i < muts.length; i++) {
+        var m = muts[i];
+        for (var j = 0; j < m.addedNodes.length; j++) {
+          var n = m.addedNodes[j];
+          if (n.nodeType !== 1) continue;
+          var frames = n.tagName === 'IFRAME' ? [n] : Array.from(n.querySelectorAll('iframe'));
+          frames.forEach(function (f) { _gpOnGameOpen(f); });
+        }
+        for (var j = 0; j < m.removedNodes.length; j++) {
+          var n = m.removedNodes[j];
+          if (n.nodeType !== 1) continue;
+          var hadFrame = n.tagName === 'IFRAME' || n.querySelector('iframe');
+          if (hadFrame) _gpOnGameClose();
+        }
+      }
+    });
+    _gpMO.observe(document.body, { childList: true, subtree: true });
+
+    // ── Load favorites once Firebase + auth are ready ──────
+    function _gpInit() {
+      if (!_gpFbReady()) {
+        var _t = setInterval(function () {
+          if (_gpFbReady()) { clearInterval(_t); _gpInit(); }
+        }, 600);
+        return;
+      }
+      var user = _gpUser();
+      if (user && user.uid) { _gpLoadFavs(); return; }
+      // Wait for auth to resolve
+      var _authPoll = setInterval(function () {
+        if (window.__FIREBASE_USER__ !== undefined) {
+          clearInterval(_authPoll);
+          var u = _gpUser();
+          if (u && u.uid) _gpLoadFavs();
+        }
+      }, 600);
+      setTimeout(function () { clearInterval(_authPoll); }, 20000);
+    }
+
+    _gpInit();
+  })();
+
 })();
 
 
