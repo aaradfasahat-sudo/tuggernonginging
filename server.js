@@ -223,7 +223,7 @@ try{var _la=Location.prototype.assign;Location.prototype.assign=function(u){retu
   var _ss=CSSStyleDeclaration.prototype.setProperty;
   CSSStyleDeclaration.prototype.setProperty=function(p,v,pri){
     if(typeof v==='string'&&(p==='background-image'||p==='background')&&v.indexOf('url(')!==-1){
-      v=v.replace(/url\(['"]?(https?:\/\/[^'")\s]+)['"]?\)/g,function(m,u){return 'url('+tp(u)+')';});
+      v=v.replace(/url\\(['"]?(https?:\\/\\/[^'")\\s]+)['"]?\\)/g,function(m,u){return 'url('+tp(u)+')';});
     }
     return _ss.call(this,p,v,pri);
   };

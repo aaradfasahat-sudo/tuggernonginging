@@ -1,0 +1,331 @@
+The FetchEvent for "https://39e69a0a-7ff3-498f-b1f4-56af2bc27e70-00-rtghsm0tnj2y.picard.replit.dev/cdn-cgi/rum?" resulted in a network error response: the promise was rejected.Understand this warning
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+The FetchEvent for "https://39e69a0a-7ff3-498f-b1f4-56af2bc27e70-00-rtghsm0tnj2y.picard.replit.dev/cdn-cgi/rum?" resulted in a network error response: the promise was rejected.Understand this warning
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+155The FetchEvent for "<URL>" resulted in a network error response: the promise was rejected.Understand this warning
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+proxy2:870 Unrecognized feature: 'pointer-lock'.Understand this warning
+about:blank:1 An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.Understand this warning
+favicon.ico:1  Failed to load resource: the server responded with a status of 403 ()Understand this error
+proxy2:1391 Uncaught SyntaxError: Unexpected numberUnderstand this error
+px?url=https%3A%2F%2Fyoutube.com:1  Failed to load resource: the server responded with a status of 400 (Bad Request)Understand this error
+px?url=https%3A%2F%2Fyoutube.com:1 An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.Understand this warning
+px?url=https%3A%2F%2Fyoutube.com:40 Uncaught SyntaxError: Invalid regular expression: /url(['"]?(https?:/: Unterminated groupUnderstand this error
+5proxy2:1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was receivedUnderstand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+8proxy2:1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was receivedUnderstand this error
+2px?url=https%3A%2F%2Fyoutube.com:1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was receivedUnderstand this error
+proxy2:1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was receivedUnderstand this error
+2px?url=https%3A%2F%2Fyoutube.com:1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was receivedUnderstand this error
+8proxy2:1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was receivedUnderstand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+px?url=https%3A%2F%2Fyoutube.com:1  Failed to load resource: the server responded with a status of 400 (Bad Request)

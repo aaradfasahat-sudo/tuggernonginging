@@ -394,6 +394,61 @@
 
     #proxy-frame.active { display: block; }
 
+    #proxy-url-bar {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10000;
+      height: 42px;
+      background: rgba(10,10,20,0.95);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+    }
+
+    #proxy-url-bar.active { display: flex; }
+
+    #proxy-url-bar-input {
+      flex: 1;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.85);
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #proxy-url-bar-input:focus { border-color: rgba(255,215,0,0.4); }
+
+    .px-bar-btn {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      color: rgba(255,255,255,0.65);
+      cursor: pointer;
+      padding: 5px 10px;
+      font-size: 13px;
+      line-height: 1;
+      transition: all 0.15s;
+    }
+
+    .px-bar-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
+    .px-bar-btn.go { background: rgba(255,215,0,0.15); border-color: rgba(255,215,0,0.3); color: rgba(255,215,0,0.9); }
+    .px-bar-btn.go:hover { background: rgba(255,215,0,0.25); }
+    .px-bar-btn.cls { border-color: rgba(255,80,80,0.25); }
+    .px-bar-btn.cls:hover { background: rgba(255,80,80,0.18); color: #ff5555; border-color: rgba(255,80,80,0.5); }
+
+    #proxy-frame {
+      top: 42px;
+    }
+
     #close-proxy {
       display: none;
       position: fixed;
@@ -544,6 +599,14 @@
     </div>
   </main>
 
+  <div id="proxy-url-bar">
+    <button class="px-bar-btn" onclick="proxyBarBack()" title="Back">&#8592;</button>
+    <button class="px-bar-btn" onclick="proxyBarReload()" title="Reload">&#8635;</button>
+    <input id="proxy-url-bar-input" type="text" placeholder="Enter URL or search..." autocomplete="off"
+           onkeydown="if(event.key==='Enter')proxyBarGo()" />
+    <button class="px-bar-btn go" onclick="proxyBarGo()">Go</button>
+    <button class="px-bar-btn cls" onclick="closeProxy()" title="Close">&#10005;</button>
+  </div>
   <iframe id="proxy-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-pointer-lock allow-downloads allow-top-navigation-by-user-activation" allow="autoplay; fullscreen; pointer-lock; gamepad"></iframe>
   <button id="close-proxy" onclick="closeProxy()" title="Close">&times;</button>
 
@@ -564,14 +627,14 @@
 
   const QUICK_LINKS_DEFAULT = [
     { name: 'Google', url: 'https://google.com', icon: 'https://www.google.com/favicon.ico' },
-    { name: 'YouTube', url: 'https://youtube.com', icon: 'https://www.youtube.com/favicon.ico' },
+    { name: 'YouTube', url: 'https://www.youtube.com', icon: 'https://www.youtube.com/favicon.ico' },
     { name: 'GitHub', url: 'https://github.com', icon: 'https://github.com/favicon.ico' },
     { name: 'Reddit', url: 'https://reddit.com', icon: 'https://www.reddit.com/favicon.ico' },
   ];
 
   const APPS = [
     { name: 'Google', desc: 'Search', icon: 'https://www.google.com/favicon.ico', url: 'https://google.com' },
-    { name: 'YouTube', desc: 'Video', icon: 'https://www.youtube.com/favicon.ico', url: 'https://youtube.com' },
+    { name: 'YouTube', desc: 'Video', icon: 'https://www.youtube.com/favicon.ico', url: 'https://www.youtube.com' },
     { name: 'Gmail', desc: 'Email', icon: 'https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico', url: 'https://mail.google.com' },
     { name: 'Google Drive', desc: 'Storage', icon: 'https://ssl.gstatic.com/docs/doclist/images/drive_2022q3_32dp.png', url: 'https://drive.google.com' },
     { name: 'Docs', desc: 'Writing', icon: 'https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico', url: 'https://docs.google.com' },
@@ -793,10 +856,30 @@
   function openProxy(url) {
     const frame = document.getElementById('proxy-frame');
     const closeBtn = document.getElementById('close-proxy');
+    const urlBar = document.getElementById('proxy-url-bar');
+    const urlInput = document.getElementById('proxy-url-bar-input');
     frame.src = '/px?url=' + encodeURIComponent(url);
     frame.classList.add('active');
     closeBtn.classList.add('active');
+    urlBar.classList.add('active');
+    if (urlInput) urlInput.value = url;
     document.body.style.overflow = 'hidden';
+  }
+
+  function proxyBarGo() {
+    const input = document.getElementById('proxy-url-bar-input');
+    if (!input || !input.value.trim()) return;
+    navigate(input.value.trim());
+  }
+
+  function proxyBarBack() {
+    const frame = document.getElementById('proxy-frame');
+    if (frame) frame.contentWindow.history.back();
+  }
+
+  function proxyBarReload() {
+    const frame = document.getElementById('proxy-frame');
+    if (frame && frame.src && frame.src !== 'about:blank') frame.src = frame.src;
   }
 
   function openAboutBlank(url) {
@@ -818,9 +901,13 @@
   window.closeProxy = function() {
     const frame = document.getElementById('proxy-frame');
     const closeBtn = document.getElementById('close-proxy');
+    const urlBar = document.getElementById('proxy-url-bar');
+    const urlInput = document.getElementById('proxy-url-bar-input');
     frame.src = 'about:blank';
     frame.classList.remove('active');
     closeBtn.classList.remove('active');
+    urlBar.classList.remove('active');
+    if (urlInput) urlInput.value = '';
     document.body.style.overflow = '';
   };
 
