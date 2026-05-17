@@ -185,16 +185,81 @@ function toProxyUrl(url, base) {
 function rewriteHtml(html, base, domain) {
   // Inject proxy script (inline, minified)
   const injectScript = `<script>
-(function(){var _b='${base.origin}';function tp(u,r){try{var a=new URL(u,r||location.href).href;if(a.startsWith('http'))return'/px?url='+encodeURIComponent(a)}catch(e){}return u}
-var _xo=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){try{arguments[1]=tp(String(u))}catch(e){}return _xo.apply(this,arguments)}
-var _fe=window.fetch;window.fetch=function(u,o){try{if(typeof u==='string')u=tp(u);else if(u&&u.url)u=new Request(tp(u.url),u)}catch(e){}return _fe.call(window,u,o)}
-var _ws=window.WebSocket;window.WebSocket=function(u,p){try{var w=String(u).replace(/^ws:/,'http:').replace(/^wss:/,'https:');u='/px?url='+encodeURIComponent(w).replace('http:','ws:').replace('https:','wss:')}catch(e){}return new _ws(u,p)}
-document.addEventListener('click',function(e){var a=e.target.closest('a[href]');if(a){var h=a.getAttribute('href');if(h&&!h.startsWith('#')&&!h.startsWith('javascript:')){try{var ab=new URL(h,location.href).href;if(ab.startsWith('http')){e.preventDefault();location.href='/px?url='+encodeURIComponent(ab)}}catch(ex){}}}},true)
-document.addEventListener('submit',function(e){var f=e.target;if(f&&f.action&&f.action.startsWith('http')){e.preventDefault();var d=new URLSearchParams(new FormData(f)).toString(),s=f.action.includes('?')?'&':'?',t=(f.method||'GET').toUpperCase()==='POST'?f.action:f.action+(d?s+d:'');location.href='/px?url='+encodeURIComponent(d?t+'&_body='+encodeURIComponent(d):t)}},true)
-;['pushState','replaceState'].forEach(function(fn){var o=history[fn];history[fn]=function(s,t,u){if(u){try{var a=new URL(u,location.href).href;if(a.startsWith('http'))u='/px?url='+encodeURIComponent(a)}catch(e){}}return o.call(this,s,t,u)}})
-var _op=window.open;window.open=function(u,t,f){if(u&&typeof u==='string'&&u.startsWith('http'))u='/px?url='+encodeURIComponent(u);return _op.call(window,u,t,f)}
-var _lo=Location.prototype.assign;Location.prototype.assign=function(u){try{var a=new URL(u,location.href).href;if(a.startsWith('http'))return _lo.call(location,'/px?url='+encodeURIComponent(a))}catch(e){}return _lo.call(location,u)}
-var _lr=Location.prototype.replace;Location.prototype.replace=function(u){try{var a=new URL(u,location.href).href;if(a.startsWith('http'))return _lr.call(location,'/px?url='+encodeURIComponent(a))}catch(e){}return _lr.call(location,u)}
+(function(){
+// tp(): convert an absolute http/https URL to a proxied /px?url= URL.
+// Already-proxied URLs and non-http schemes are returned unchanged.
+function tp(u,r){
+  try{
+    if(!u||u.indexOf('/px?url=')!==-1)return u;
+    var a=new URL(String(u),r||location.href).href;
+    if(a.startsWith('http'))return'/px?url='+encodeURIComponent(a);
+  }catch(e){}return u;
+}
+// XHR intercept
+var _xo=XMLHttpRequest.prototype.open;
+XMLHttpRequest.prototype.open=function(m,u){
+  try{u=tp(String(u));}catch(e){}
+  return _xo.apply(this,arguments);
+};
+// fetch intercept — preserve Request objects
+var _fe=window.fetch;
+window.fetch=function(u,o){
+  try{
+    if(typeof u==='string'){u=tp(u);}
+    else if(u instanceof Request){
+      var pu=tp(u.url);
+      if(pu!==u.url)u=new Request(pu,{method:u.method,headers:u.headers,body:u.body,mode:'cors',credentials:u.credentials,redirect:u.redirect});
+    }
+  }catch(e){}
+  return _fe.call(window,u,o);
+};
+// Link click intercept — only intercept external origins
+document.addEventListener('click',function(e){
+  var a=e.target.closest('a[href]');
+  if(!a)return;
+  var h=a.getAttribute('href');
+  if(!h||h.startsWith('#')||h.startsWith('javascript:'))return;
+  try{
+    var ab=new URL(h,location.href).href;
+    if(ab.startsWith('http')&&ab.indexOf('/px?url=')===-1){
+      e.preventDefault();
+      location.href='/px?url='+encodeURIComponent(ab);
+    }
+  }catch(ex){}
+},true);
+// Form submit intercept
+document.addEventListener('submit',function(e){
+  var f=e.target;
+  if(!f||!f.action)return;
+  try{
+    var fa=new URL(f.action,location.href).href;
+    if(!fa.startsWith('http')||fa.indexOf('/px?url=')!==-1)return;
+    e.preventDefault();
+    var method=(f.method||'GET').toUpperCase();
+    var d=new URLSearchParams(new FormData(f)).toString();
+    var sep=fa.includes('?')?'&':'?';
+    if(method==='POST'){location.href='/px?url='+encodeURIComponent(fa)+(d?'&_body='+encodeURIComponent(d):'');}
+    else{location.href='/px?url='+encodeURIComponent(fa+(d?sep+d:''));}
+  }catch(ex){}
+},true);
+// history.pushState / replaceState
+['pushState','replaceState'].forEach(function(fn){
+  var o=history[fn];
+  history[fn]=function(s,t,u){
+    if(u){try{var a=new URL(String(u),location.href).href;if(a.startsWith('http')&&a.indexOf('/px?url=')===-1)u='/px?url='+encodeURIComponent(a);}catch(e){}}
+    return o.call(this,s,t,u);
+  };
+});
+// window.open
+var _op=window.open;
+window.open=function(u,t,f){if(u&&typeof u==='string'){u=tp(u);}return _op.call(window,u,t,f);};
+// location.assign / replace
+var _lo=Location.prototype.assign;
+Location.prototype.assign=function(u){return _lo.call(location,tp(String(u)));};
+var _lr=Location.prototype.replace;
+Location.prototype.replace=function(u){return _lr.call(location,tp(String(u)));};
+// Disable service-worker registration (breaks proxied pages)
+if(navigator.serviceWorker){try{Object.defineProperty(navigator,'serviceWorker',{get:function(){return{register:function(){return Promise.resolve({scope:'/'});},getRegistrations:function(){return Promise.resolve([]);}};}});}catch(e){}}
 })();</script>`;
 
   // Remove <base> tags
@@ -266,11 +331,10 @@ function rewriteCss(css, base) {
   });
 }
 
-// ── JS rewriting (lightweight: rewrite absolute URLs in strings) ──
+// ── JS rewriting — disabled: static string replacement breaks SPAs ──
+// The injected XHR/fetch interceptors handle runtime URL rewriting instead.
 function rewriteJs(js, base) {
-  return js.replace(/['"](https?:\/\/[^'"]+)['"]/g, (m, url) => {
-    try { new URL(url); return m.replace(url, toProxyUrl(url, base)); } catch { return m; }
-  });
+  return js;
 }
 
 // ── Resource type detection ──────────────────────────────────
@@ -298,11 +362,17 @@ const RESOURCE_HEADERS = {
 };
 
 function buildUpstreamHeaders(clientReq, targetUrl, isRetry) {
-  const ua = pickUA();
+  // For YouTube, always use a stable desktop Chrome UA so the page renders properly
+  const isYouTube = targetUrl.hostname.includes('youtube.com') || targetUrl.hostname.includes('youtu.be') || targetUrl.hostname.includes('ytimg.com') || targetUrl.hostname.includes('googlevideo.com') || targetUrl.hostname.includes('yt3.ggpht.com');
+  const isDDG = targetUrl.hostname.includes('duckduckgo.com') || targetUrl.hostname.includes('ddg.gg');
+
+  const ua = isYouTube
+    ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+    : pickUA();
+
   const resourceType = detectResourceType(targetUrl.pathname + targetUrl.search);
   const rh = RESOURCE_HEADERS[resourceType] || RESOURCE_HEADERS.document;
   const isChrome = ua.includes('Chrome/') || ua.includes('Edg/') || ua.includes('OPR/');
-  const isFirefox = ua.includes('Firefox/');
   const isMobile = ua.includes('Mobile');
   const domain = getDomain(targetUrl.href);
 
@@ -315,10 +385,10 @@ function buildUpstreamHeaders(clientReq, targetUrl, isRetry) {
   const headers = {
     'User-Agent': ua,
     'Accept': rh['Accept'],
-    'Accept-Language': isMobile ? 'en-US,en;q=0.9' : (Math.random() > 0.7 ? 'en-GB,en;q=0.9,en-US;q=0.8' : 'en-US,en;q=0.9'),
-    'Accept-Encoding': Math.random() > 0.5 ? 'gzip, deflate, br' : 'gzip, deflate',
-    'Cache-Control': Math.random() > 0.3 ? 'no-cache' : 'max-age=0',
-    'DNT': Math.random() > 0.2 ? '1' : undefined,
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
+    'DNT': '1',
     'Referer': targetUrl.origin + '/',
     'Origin': targetUrl.origin,
     'Connection': 'keep-alive',
@@ -327,6 +397,27 @@ function buildUpstreamHeaders(clientReq, targetUrl, isRetry) {
     'sec-ch-ua-platform': ua.includes('Windows') ? '"Windows"' : ua.includes('Mac') ? '"macOS"' : ua.includes('Linux') && !isMobile ? '"Linux"' : ua.includes('Android') ? '"Android"' : '"iOS"',
     ...rh,
   };
+
+  // YouTube-specific: add client identity headers so the API/player responds correctly
+  if (isYouTube) {
+    headers['x-youtube-client-name'] = '1';
+    headers['x-youtube-client-version'] = '2.20240501.01.00';
+    headers['x-origin'] = 'https://www.youtube.com';
+    headers['Referer'] = 'https://www.youtube.com/';
+    headers['Origin'] = 'https://www.youtube.com';
+    // Use sec-fetch headers that match a real navigation
+    headers['Sec-Fetch-Site'] = 'same-origin';
+    headers['Sec-Fetch-Mode'] = resourceType === 'document' ? 'navigate' : 'no-cors';
+    headers['Sec-Fetch-Dest'] = resourceType === 'document' ? 'document' : (resourceType === 'script' ? 'script' : 'empty');
+  }
+
+  // DuckDuckGo: send proper search engine headers
+  if (isDDG) {
+    headers['Referer'] = 'https://duckduckgo.com/';
+    headers['Origin'] = 'https://duckduckgo.com';
+    headers['Sec-Fetch-Site'] = 'same-origin';
+    headers['Sec-Fetch-Mode'] = 'navigate';
+  }
 
   // Forward cookies from jar
   const jarCookies = getCookies(domain);
