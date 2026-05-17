@@ -400,16 +400,24 @@ function buildUpstreamHeaders(clientReq, targetUrl, isRetry) {
 
   // YouTube-specific: add client identity headers + consent cookie bypass
   if (isYouTube) {
-    headers['x-youtube-client-name'] = '1';
-    headers['x-youtube-client-version'] = '2.20240501.01.00';
     headers['x-origin'] = 'https://www.youtube.com';
     headers['Referer'] = 'https://www.youtube.com/';
     headers['Origin'] = 'https://www.youtube.com';
     headers['Sec-Fetch-Site'] = 'same-origin';
-    // API/XHR endpoints need cors mode; navigations need navigate
+    headers['Upgrade-Insecure-Requests'] = '1';
+    // Only add internal client headers for YouTube API endpoints, NOT the main HTML page.
+    // Claiming to be the web client on the HTML page while lacking real session cookies
+    // triggers YouTube's bot detection and causes 400 errors.
     const isYtApi = /\/(youtubei|generate_204|log_event|stats|api\/)/.test(targetUrl.pathname);
-    headers['Sec-Fetch-Mode'] = isYtApi ? 'cors' : (resourceType === 'document' ? 'navigate' : 'no-cors');
-    headers['Sec-Fetch-Dest'] = isYtApi ? 'empty' : (resourceType === 'document' ? 'document' : (resourceType === 'script' ? 'script' : 'empty'));
+    if (isYtApi) {
+      headers['x-youtube-client-name'] = '1';
+      headers['x-youtube-client-version'] = '2.20240501.01.00';
+      headers['Sec-Fetch-Mode'] = 'cors';
+      headers['Sec-Fetch-Dest'] = 'empty';
+    } else {
+      headers['Sec-Fetch-Mode'] = resourceType === 'document' ? 'navigate' : 'no-cors';
+      headers['Sec-Fetch-Dest'] = resourceType === 'document' ? 'document' : (resourceType === 'script' ? 'script' : 'empty');
+    }
   }
 
   // DuckDuckGo: send proper search engine headers
@@ -423,8 +431,9 @@ function buildUpstreamHeaders(clientReq, targetUrl, isRetry) {
   // Cookie handling: jar cookies take priority; client cookies as fallback (never for YouTube)
   const jarCookies = getCookies(domain);
   if (isYouTube) {
-    // Always ensure consent cookies — merge with jar so neither is lost
-    const ytConsent = 'SOCS=CAESEwgDEgk0ODE3Nzk3MjkaAmVuIAEaBgiA_LyaBg; CONSENT=YES+cb.20210328-17-p0.en+FX+667; GPS=1; VISITOR_INFO1_LIVE=1; YSC=1';
+    // Only use real consent cookies — do NOT send fake per-session cookies like
+    // VISITOR_INFO1_LIVE or YSC. Fake session cookies make YouTube's bot detection worse.
+    const ytConsent = 'SOCS=CAISNQgDEhJnd3NfMjAyNDExMjMtMF9SQzEaC2VuLVVTLGVuO3VzIiAyMDI0MTEyMy0wX1JDMVgB; CONSENT=PENDING+987';
     headers['Cookie'] = jarCookies ? jarCookies + '; ' + ytConsent : ytConsent;
   } else {
     if (jarCookies) headers['Cookie'] = jarCookies;

@@ -2950,6 +2950,14 @@
     if (!ov || !tabBar || !content) return;
 
     ov.style.display = 'flex';
+    // Hide the main site header so it doesn't bleed above the overlay
+    try {
+      const h = document.querySelector('header');
+      if (h && h.id !== 'fas-pov') {
+        h.style.setProperty('visibility', 'hidden', 'important');
+        h.style.setProperty('pointer-events', 'none', 'important');
+      }
+    } catch(e) {}
 
     const id = ++_tabIdCounter;
     const ti = title || url || 'New Tab';
@@ -3068,6 +3076,11 @@
     _tabs = [];
     _activeTabId = null;
     _clearProxyState();
+    // Restore main site header visibility
+    try {
+      const h = document.querySelector('header');
+      if (h && h.id !== 'fas-pov') { h.style.removeProperty('visibility'); h.style.removeProperty('pointer-events'); }
+    } catch(e) {}
   }
 
   function _loadInOverlay(urlOrQuery, skipResolve) {
