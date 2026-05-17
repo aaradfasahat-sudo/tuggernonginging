@@ -27,60 +27,6 @@
       overflow: hidden;
     }
 
-    /* ── IFRAME OVERLAY ── */
-    #proxy-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 1000;
-      background: #000;
-      flex-direction: column;
-    }
-    #proxy-overlay.active { display: flex; }
-
-    #proxy-toolbar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      background: #0d0e14ee;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-      backdrop-filter: blur(8px);
-    }
-
-    #proxy-toolbar .toolbar-title {
-      font-weight: 700;
-      font-size: 14px;
-      color: var(--accent);
-      letter-spacing: 0.5px;
-      flex: 1;
-    }
-
-    .tb-btn {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 8px;
-      padding: 6px 10px;
-      cursor: pointer;
-      font-size: 12px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      transition: background 0.15s, border-color 0.15s;
-      white-space: nowrap;
-    }
-    .tb-btn:hover { background: var(--surface); border-color: rgba(255,255,255,0.15); }
-    .tb-btn.danger { border-color: rgba(229,57,53,0.4); }
-    .tb-btn.danger:hover { background: rgba(229,57,53,0.15); border-color: var(--accent); }
-
-    #proxy-frame {
-      flex: 1;
-      width: 100%;
-      border: none;
-    }
-
     /* ── HUB PAGE ── */
     #hub {
       height: 100%;
@@ -286,7 +232,7 @@
         <div class="card-desc">Clean dark interface with multi-engine search, app shortcuts, settings and cloaking. Fast and reliable.</div>
       </div>
       <div class="card-footer">
-        <button class="open-btn" onclick="openProxy('/proxy1.html', 'FasahatHub Proxy')">
+        <button class="open-btn" onclick="openProxy('/proxy1.html')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
           Open
         </button>
@@ -306,7 +252,7 @@
         <div class="card-desc">Catppuccin Mocha themed proxy with particle background, tabbed browsing, engine selector and cloaking.</div>
       </div>
       <div class="card-footer">
-        <button class="open-btn cat" onclick="openProxy('/proxy2.html', 'FasahatHub Proxy — Mocha')">
+        <button class="open-btn cat" onclick="openProxy('/proxy2.html')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
           Open
         </button>
@@ -319,64 +265,10 @@
   </div>
 </div>
 
-<!-- IFRAME OVERLAY -->
-<div id="proxy-overlay">
-  <div id="proxy-toolbar">
-    <span class="toolbar-title" id="proxy-label">FasahatHub Proxy</span>
-    <button class="tb-btn" onclick="reloadProxy()" title="Reload">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-      Reload
-    </button>
-    <button class="tb-btn" onclick="goFullscreen()" title="Fullscreen">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-      Fullscreen
-    </button>
-    <button class="tb-btn danger" onclick="closeProxy()" title="Close">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      Close
-    </button>
-  </div>
-  <iframe
-    id="proxy-frame"
-    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-pointer-lock allow-downloads allow-top-navigation-by-user-activation"
-    allow="autoplay; fullscreen; pointer-lock; gamepad"
-  ></iframe>
-</div>
-
 <script>
-  const overlay = document.getElementById('proxy-overlay');
-  const frame   = document.getElementById('proxy-frame');
-  const label   = document.getElementById('proxy-label');
-
-  function openProxy(src, name) {
-    frame.src = src;
-    label.textContent = name;
-    overlay.classList.add('active');
-    document.body.style.overflow = 'hidden';
+  function openProxy(src) {
+    window.location.href = src;
   }
-
-  function closeProxy() {
-    overlay.classList.remove('active');
-    frame.src = 'about:blank';
-    document.body.style.overflow = '';
-  }
-
-  function reloadProxy() {
-    const src = frame.src;
-    frame.src = 'about:blank';
-    setTimeout(() => { frame.src = src; }, 80);
-  }
-
-  function goFullscreen() {
-    const el = frame;
-    if (el.requestFullscreen) el.requestFullscreen();
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-    else if (el.mozRequestFullScreen) el.mozRequestFullScreen();
-  }
-
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && overlay.classList.contains('active')) closeProxy();
-  });
 </script>
 
 </body>

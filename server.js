@@ -238,6 +238,10 @@ try{var _la=Location.prototype.assign;Location.prototype.assign=function(u){retu
     return _ss.call(this,p,v,pri);
   };
 })();
+/* Spoof window.top/parent/frameElement so sites like YouTube don't detect iframe embedding */
+try{Object.defineProperty(window,'top',{get:function(){return window;},configurable:true});}catch(e){}
+try{Object.defineProperty(window,'parent',{get:function(){return window;},configurable:true});}catch(e){}
+try{Object.defineProperty(window,'frameElement',{get:function(){return null;},configurable:true});}catch(e){}
 /* Block service workers — they hijack fetch and break the proxy */
 try{Object.defineProperty(navigator,'serviceWorker',{get:function(){return{register:function(){return Promise.resolve({scope:'/'});},getRegistrations:function(){return Promise.resolve([]);},addEventListener:function(){}};},configurable:true});}catch(e){}
 /* Spoof navigator.getInstalledRelatedApps — only works in top-level context; throws inside iframes */
