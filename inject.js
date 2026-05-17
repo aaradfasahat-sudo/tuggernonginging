@@ -2907,6 +2907,26 @@
     btnClose.addEventListener('click', _closeBrowser);
     btnNewTab.addEventListener('click', () => _createTab('https://duckduckgo.com', 'New Tab'));
 
+    btnBack.addEventListener('click', () => {
+      const tab = _tabs.find(t => t.id === _activeTabId);
+      if (tab) { try { tab.iframe.contentWindow.history.back(); } catch(e) {} }
+    });
+    btnFwd.addEventListener('click', () => {
+      const tab = _tabs.find(t => t.id === _activeTabId);
+      if (tab) { try { tab.iframe.contentWindow.history.forward(); } catch(e) {} }
+    });
+    btnReload.addEventListener('click', () => {
+      const tab = _tabs.find(t => t.id === _activeTabId);
+      if (!tab) return;
+      try {
+        const src = tab.iframe.src;
+        if (src && src !== 'about:blank') {
+          tab.iframe.src = 'about:blank';
+          requestAnimationFrame(() => { tab.iframe.src = src; });
+        }
+      } catch(e) {}
+    });
+
     urlForm.addEventListener('submit', e => {
       e.preventDefault(); e.stopPropagation();
       const ui = document.getElementById('fas-pov-urlinput');
@@ -2966,7 +2986,7 @@
     const iframe = document.createElement('iframe');
     iframe.id = 'fas-pov-frame-' + id;
     iframe.style.cssText = 'width:100%;height:100%;border:none;display:none;background:#fff;';
-    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-pointer-lock allow-downloads allow-modals');
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-pointer-lock allow-downloads allow-modals allow-top-navigation-by-user-activation');
     iframe.setAttribute('allow', 'autoplay; fullscreen; gamepad; clipboard-read; clipboard-write');
 
     // Tab button
