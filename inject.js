@@ -181,14 +181,16 @@
     ss(K.watching, newW);
   }
 
-  // Detect content type from visible h1
+  // Detect content type from visible h1 + URL + page context
   function detectType() {
     const h = (document.querySelector('h1')?.textContent || '').toLowerCase();
-    if (h.includes('m0v') || h.includes('movie')) return 'movie';
-    if (h.includes('an1m') || h.includes('anim')) return 'anime';
-    if (h.includes('show') || h.includes('tv')) return 'tv';
-    if (h.includes('manga')) return 'manga';
-    if (h.includes('game') || h.includes('g4m3')) return 'game';
+    const url = location.pathname.toLowerCase();
+    const title = document.title.toLowerCase();
+    if (h.includes('m0v') || h.includes('movie') || url.includes('movie') || title.includes('movie')) return 'movie';
+    if (h.includes('an1m') || h.includes('anim') || url.includes('anime') || title.includes('anime')) return 'anime';
+    if (h.includes('show') || h.includes('tv') || url.includes('/tv') || url.includes('/show')) return 'tv';
+    if (h.includes('manga') || url.includes('manga')) return 'manga';
+    if (h.includes('game') || h.includes('g4m3') || url.includes('game') || url.includes('/play') || title.includes('game')) return 'game';
     return 'content';
   }
 
@@ -3836,6 +3838,23 @@
       return !!(window.db && window.fsSetDoc && window.fsDoc && window.fsGetDoc);
     }
 
+    // ── localStorage helpers for offline game save ─────────
+    function _gpLocalSave(game, totalSeconds) {
+      try {
+        var existing = {};
+        try { existing = JSON.parse(localStorage.getItem('fas_game_playtime') || '{}'); } catch(e) {}
+        var fk = _gpFieldKey(game.url);
+        existing[fk] = { title: game.title, url: game.url, seconds: totalSeconds, updated: Date.now() };
+        localStorage.setItem('fas_game_playtime', JSON.stringify(existing));
+      } catch(e) {}
+    }
+
+    function _gpLocalSaveLastPlayed(game) {
+      try {
+        localStorage.setItem('fas_last_played_game', JSON.stringify({ title: game.title, url: game.url, timestamp: Date.now() }));
+      } catch(e) {}
+    }
+
     // ── Debounced favorites write ──────────────────────────
     function _gpSaveFavs(favsArray) {
       var user = _gpUser();
@@ -3901,14 +3920,20 @@
       return (url || 'unknown').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 80);
     }
 
-    // ── Write accumulated play time to Firestore ───────────
+    // ── Write accumulated play time to Firestore + localStorage ───
     function _gpFlushTime() {
-      if (!_gpCurGame || !_gpFbReady()) return;
+      if (!_gpCurGame) return;
+      var total = _gpStoredTotal + _gpAccumulated;
+      if (total < 1) return;
+
+      // Always save to localStorage (works without Firebase)
+      _gpLocalSave(_gpCurGame, total);
+
+      // Also save to Firestore if available
+      if (!_gpFbReady()) return;
       var user = _gpUser();
       if (!user || !user.uid) return;
       var fk = _gpFieldKey(_gpCurGame.url);
-      var total = _gpStoredTotal + _gpAccumulated;
-      if (total < 1) return;
       var update = { gamePlayTime: {} };
       update.gamePlayTime[fk] = total;
       try {
@@ -3925,8 +3950,9 @@
       var src = iframe.src || '';
       var hasSrcdoc = !!(iframe.srcdoc && iframe.srcdoc.length > 200);
       if (!src && !hasSrcdoc) return;
-      if (src === 'about:blank' || src.includes(location.hostname)) return;
-      if (iframe.id && (iframe.id.startsWith('fas-pov-') || iframe.id === 'proxy-frame' || iframe.id === 'proxy-iframe')) return;
+      if (src === 'about:blank') return;
+      // Skip the proxy/overlay iframes (not game iframes)
+      if (iframe.id && (iframe.id.startsWith('fas-pov-') || iframe.id === 'proxy-frame' || iframe.id === 'proxy-iframe' || iframe.id === 'fas-ov-frame' || iframe.id === 'fas-main-overlay')) return;
 
       // Ignore if a game is already tracked (avoid duplicates)
       if (_gpCurGame) return;
@@ -3955,9 +3981,19 @@
       _gpAccumulated = 0;
       _gpStoredTotal = 0;
 
+      // Always save last-played to localStorage immediately
+      _gpLocalSaveLastPlayed(_gpCurGame);
+
+      // Load stored total from localStorage as a fallback base
+      try {
+        var lsData = JSON.parse(localStorage.getItem('fas_game_playtime') || '{}');
+        var lsFk = _gpFieldKey(_gpCurGame.url);
+        _gpStoredTotal = Number((lsData[lsFk] || {}).seconds || 0);
+      } catch(e) {}
+
       var user = _gpUser();
       if (user && user.uid && _gpFbReady()) {
-        // Save last-played game immediately
+        // Save last-played game to Firestore
         try {
           window.fsSetDoc(
             window.fsDoc(window.db, 'players', user.uid),
@@ -3965,12 +4001,14 @@
             { merge: true }
           );
         } catch (e) {}
-        // Load the stored play-time total so we can accumulate on top of it
+        // Load the stored play-time total from Firestore (may be higher than localStorage)
         var fk = _gpFieldKey(_gpCurGame.url);
         window.fsGetDoc(window.fsDoc(window.db, 'players', user.uid))
           .then(function (doc) {
             if (doc.exists()) {
-              _gpStoredTotal = Number(((doc.data() || {}).gamePlayTime || {})[fk] || 0);
+              var fbTotal = Number(((doc.data() || {}).gamePlayTime || {})[fk] || 0);
+              // Use the higher of the two (localStorage vs Firestore)
+              if (fbTotal > _gpStoredTotal) _gpStoredTotal = fbTotal;
             }
           })
           .catch(function () {});

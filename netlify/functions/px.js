@@ -125,6 +125,17 @@ function rewriteHtml(html, base) {
     } catch(e) {}
     return _replace.call(location, url);
   };
+  // Rewrite dynamically set src/href on elements
+  var _origSetAttr = Element.prototype.setAttribute;
+  Element.prototype.setAttribute = function(name, value) {
+    try {
+      var n = name.toLowerCase();
+      if ((n === 'src' || n === 'href' || n === 'action') && typeof value === 'string' && value.startsWith('http')) {
+        value = '/px?url=' + encodeURIComponent(new URL(value, location.href).href);
+      }
+    } catch(e) {}
+    return _origSetAttr.call(this, name, value);
+  };
 })();
 </script>`;
 
@@ -136,8 +147,12 @@ function rewriteHtml(html, base) {
     /(<script\b[^>]*?\ssrc=)(["'])([^"']*)(["'])/gi,
     /(<link\b[^>]*?\shref=)(["'])([^"']*)(["'])/gi,
     /(<img\b[^>]*?\ssrc=)(["'])([^"']*)(["'])/gi,
+    /(<img\b[^>]*?\sdata-src=)(["'])([^"']*)(["'])/gi,
+    /(<img\b[^>]*?\sdata-lazy-src=)(["'])([^"']*)(["'])/gi,
+    /(<img\b[^>]*?\sdata-original=)(["'])([^"']*)(["'])/gi,
     /(<source\b[^>]*?\ssrc=)(["'])([^"']*)(["'])/gi,
     /(<video\b[^>]*?\ssrc=)(["'])([^"']*)(["'])/gi,
+    /(<video\b[^>]*?\sposter=)(["'])([^"']*)(["'])/gi,
     /(<iframe\b[^>]*?\ssrc=)(["'])([^"']*)(["'])/gi,
     /(<meta\b[^>]*?\scontent=)(["'])(https?:\/\/[^"']*)(["'])/gi,
   ];
@@ -203,6 +218,12 @@ function rewriteSetCookie(headers) {
   );
 }
 
+function withTimeout(ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return { signal: controller.signal, clear: () => clearTimeout(timer) };
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -225,12 +246,15 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: 'Invalid URL' };
   }
 
+  const { signal, clear } = withTimeout(12000);
+
   try {
+    const ua = pickUA();
     const fetchOptions = {
       method: (event.httpMethod === 'GET' || event.httpMethod === 'HEAD') ? event.httpMethod : 'GET',
       headers: {
-        'User-Agent': pickUA(),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'User-Agent': ua,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
         'Cache-Control': 'no-cache',
@@ -240,10 +264,15 @@ exports.handler = async (event) => {
         'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
         'sec-ch-ua-mobile': '?0',
         'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'none',
+        'sec-fetch-user': '?1',
         'Upgrade-Insecure-Requests': '1',
+        'DNT': '1',
       },
       redirect: 'follow',
-      signal: AbortSignal.timeout(9000),
+      signal,
     };
 
     if (event.body && (event.httpMethod === 'POST' || event.httpMethod === 'PUT' || event.httpMethod === 'PATCH')) {
@@ -254,6 +283,7 @@ exports.handler = async (event) => {
     }
 
     const response = await fetch(targetUrl.href, fetchOptions);
+    clear();
     const finalUrl = new URL(response.url || rawUrl);
 
     const respHeaders = {
@@ -277,6 +307,41 @@ exports.handler = async (event) => {
           statusCode: response.status,
           headers: { ...respHeaders, 'Location': '/px?url=' + encodeURIComponent(abs) },
           body: '',
+        };
+      }
+    }
+
+    // For 4xx/5xx responses from the proxied site, show a helpful error page instead
+    if (response.status >= 400) {
+      const ct = (response.headers.get('content-type') || '').toLowerCase();
+      // If it's HTML, still try to serve it (some 4xx pages are useful)
+      if (!ct.includes('text/html') && !ct.includes('application/xhtml')) {
+        const statusText = {
+          400: 'Bad Request — The site rejected this request. It may require login or block proxies.',
+          401: 'Unauthorized — This page requires you to be logged in.',
+          403: 'Forbidden — This site is blocking proxy access.',
+          404: 'Not Found — The page does not exist.',
+          429: 'Rate Limited — Too many requests. Try again in a moment.',
+          451: 'Unavailable for Legal Reasons.',
+        };
+        const msg = statusText[response.status] || `The site returned error ${response.status}.`;
+        return {
+          statusCode: 200,
+          headers: { ...respHeaders, 'Content-Type': 'text/html; charset=utf-8' },
+          body: `<!DOCTYPE html><html><head><title>Site Error ${response.status}</title><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#0d0e14;color:#e8e9f0;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;padding:24px}
+h2{color:#f59e0b;font-size:22px}p{color:#888;font-size:14px;max-width:480px;text-align:center;line-height:1.6}
+.url{color:#aaa;font-size:12px;word-break:break-all;max-width:480px;background:#161b22;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.08)}
+a{color:#58a6ff;font-size:14px;text-decoration:none}a:hover{text-decoration:underline}
+.tip{font-size:12px;color:#555;max-width:480px;text-align:center;line-height:1.6;background:#0d1117;padding:10px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.05)}
+</style></head><body>
+<h2>&#9888; ${response.status} — Cannot Load Page</h2>
+<p>${msg}</p>
+<div class="url">${rawUrl}</div>
+<div class="tip">&#128161; Try: searching on Google instead, or open the site directly in a new tab if you have access.</div>
+<a href="javascript:history.back()">&#8592; Go back</a>
+</body></html>`,
         };
       }
     }
@@ -342,7 +407,8 @@ exports.handler = async (event) => {
     };
 
   } catch (err) {
-    const isTimeout = err.name === 'TimeoutError' || (err.message || '').includes('timeout');
+    clear();
+    const isTimeout = err.name === 'AbortError' || err.name === 'TimeoutError' || (err.message || '').includes('timeout');
     return {
       statusCode: 502,
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
@@ -353,11 +419,11 @@ h2{color:#e53935;font-size:22px}p{color:#888;font-size:14px;max-width:480px;text
 .url{color:#aaa;font-size:12px;word-break:break-all;max-width:480px;background:#161b22;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.08)}
 a{color:#58a6ff;font-size:14px;text-decoration:none}a:hover{text-decoration:underline}
 </style></head><body>
-<h2>${isTimeout ? '⏱ Request Timed Out' : '⚠ Could not load page'}</h2>
+<h2>${isTimeout ? '&#8987; Request Timed Out' : '&#9888; Could not load page'}</h2>
 <p>${isTimeout ? 'The request took too long. The site may be slow or blocking proxies.' : 'This site could not be loaded through the proxy. It may block server-side requests or require special handling.'}</p>
 <div class="url">${rawUrl}</div>
 <p style="font-size:12px">Error: ${(err.message || '').replace(/</g,'&lt;')}</p>
-<a href="javascript:history.back()">← Go back</a>
+<a href="javascript:history.back()">&#8592; Go back</a>
 </body></html>`,
     };
   }
