@@ -6,6 +6,8 @@ const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  // Mobile UA — better for some sites
+  'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/537.36',
 ];
 
 const STRIP_RES_HEADERS = new Set([
@@ -16,8 +18,70 @@ const STRIP_RES_HEADERS = new Set([
   'expect-ct', 'report-to', 'nel', 'vary', 'content-length', 'content-encoding',
 ]);
 
-function pickUA() {
-  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+// Sites that block server proxies — redirect to their simpler/mobile/embed equivalent
+const SITE_OVERRIDES = {
+  'youtube.com':   (u) => rewriteYouTube(u),
+  'youtu.be':      (u) => rewriteYouTubeShort(u),
+  'instagram.com': (u) => 'https://www.picuki.com/profile/' + extractInstagramUser(u),
+  'twitter.com':   (u) => u.replace('twitter.com', 'nitter.privacydev.net'),
+  'x.com':         (u) => u.replace('x.com', 'nitter.privacydev.net'),
+  'reddit.com':    (u) => u.replace(/^https?:\/\/(www\.)?reddit\.com/, 'https://old.reddit.com'),
+  'www.reddit.com':(u) => u.replace(/^https?:\/\/(www\.)?reddit\.com/, 'https://old.reddit.com'),
+};
+
+function rewriteYouTube(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    const v = u.searchParams.get('v');
+    // Single video → use embed (works through proxy)
+    if (v) return `https://www.youtube.com/embed/${v}?autoplay=1&rel=0`;
+    // Search → use Invidious-style search page
+    const q = u.searchParams.get('search_query') || u.searchParams.get('q');
+    if (q) return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+    // Homepage → use YouTube TV (simpler SPA)
+    return 'https://www.youtube.com/tv';
+  } catch(e) { return rawUrl; }
+}
+
+function rewriteYouTubeShort(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    const id = u.pathname.replace('/', '').split('/')[0];
+    if (id) return `https://www.youtube.com/embed/${id}?autoplay=1&rel=0`;
+  } catch(e) {}
+  return rawUrl;
+}
+
+function extractInstagramUser(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    const parts = u.pathname.split('/').filter(Boolean);
+    return parts[0] || '';
+  } catch(e) { return ''; }
+}
+
+function preprocessUrl(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    const override = SITE_OVERRIDES[host] || SITE_OVERRIDES[u.hostname.toLowerCase()];
+    if (override) {
+      const result = override(rawUrl);
+      if (result && result !== rawUrl) return result;
+    }
+  } catch(e) {}
+  return rawUrl;
+}
+
+function pickUA(url) {
+  // Use mobile UA for sites that serve lighter pages to mobile
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host.includes('youtube') || host.includes('google') || host.includes('instagram')) {
+      return USER_AGENTS[4]; // mobile
+    }
+  } catch(e) {}
+  return USER_AGENTS[Math.floor(Math.random() * (USER_AGENTS.length - 1))];
 }
 
 function toProxyUrl(url, base) {
@@ -33,7 +97,6 @@ function toProxyUrl(url, base) {
 function rewriteHtml(html, base) {
   const injectScript = `<script>
 (function(){
-  var _base = '${base.origin}';
   function toProxy(u, rel) {
     try {
       var abs = new URL(u, rel || location.href).href;
@@ -41,11 +104,13 @@ function rewriteHtml(html, base) {
     } catch(e) {}
     return u;
   }
+  // XHR
   var _XHR = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function(m, u) {
     try { arguments[1] = toProxy(String(u)); } catch(e) {}
     return _XHR.apply(this, arguments);
   };
+  // fetch
   var _fetch = window.fetch;
   window.fetch = function(u, o) {
     try {
@@ -54,6 +119,7 @@ function rewriteHtml(html, base) {
     } catch(e) {}
     return _fetch.call(window, u, o);
   };
+  // WebSocket
   var _WS = window.WebSocket;
   window.WebSocket = function(url, protocols) {
     try {
@@ -63,6 +129,7 @@ function rewriteHtml(html, base) {
     } catch(e) {}
     return new _WS(url, protocols);
   };
+  // Link clicks
   document.addEventListener('click', function(e) {
     var a = e.target.closest('a[href]');
     if (a) {
@@ -79,6 +146,7 @@ function rewriteHtml(html, base) {
       }
     }
   }, true);
+  // Form submit
   document.addEventListener('submit', function(e) {
     var f = e.target;
     if (f && f.action && f.action.startsWith('http')) {
@@ -90,18 +158,20 @@ function rewriteHtml(html, base) {
       location.href = '/px?url=' + encodeURIComponent(target);
     }
   }, true);
+  // History API
   ['pushState','replaceState'].forEach(function(fn) {
     var orig = history[fn];
     history[fn] = function(state, title, url) {
       if (url) {
         try {
-          var abs = new URL(url, location.href).href;
+          var abs = new URL(String(url), location.href).href;
           if (abs.startsWith('http')) url = '/px?url=' + encodeURIComponent(abs);
         } catch(e) {}
       }
       return orig.call(this, state, title, url);
     };
   });
+  // window.open
   var _open = window.open;
   window.open = function(url, target, features) {
     if (url && typeof url === 'string' && url.startsWith('http')) {
@@ -109,6 +179,7 @@ function rewriteHtml(html, base) {
     }
     return _open.call(window, url, target, features);
   };
+  // location.assign / replace
   var _assign = Location.prototype.assign;
   Location.prototype.assign = function(url) {
     try {
@@ -125,17 +196,32 @@ function rewriteHtml(html, base) {
     } catch(e) {}
     return _replace.call(location, url);
   };
-  // Rewrite dynamically set src/href on elements
+  // Dynamic setAttribute
   var _origSetAttr = Element.prototype.setAttribute;
   Element.prototype.setAttribute = function(name, value) {
     try {
       var n = name.toLowerCase();
-      if ((n === 'src' || n === 'href' || n === 'action') && typeof value === 'string' && value.startsWith('http')) {
+      if ((n === 'src' || n === 'href' || n === 'action') && typeof value === 'string' && /^https?:\/\//.test(value)) {
         value = '/px?url=' + encodeURIComponent(new URL(value, location.href).href);
       }
     } catch(e) {}
     return _origSetAttr.call(this, name, value);
   };
+  // image.src assignments
+  var _imgSrcDesc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+  if (_imgSrcDesc && _imgSrcDesc.set) {
+    var _origImgSrc = _imgSrcDesc.set;
+    Object.defineProperty(HTMLImageElement.prototype, 'src', {
+      set: function(val) {
+        if (typeof val === 'string' && /^https?:\/\//.test(val)) {
+          try { val = '/px?url=' + encodeURIComponent(new URL(val, location.href).href); } catch(e) {}
+        }
+        return _origImgSrc.call(this, val);
+      },
+      get: _imgSrcDesc.get,
+      configurable: true,
+    });
+  }
 })();
 </script>`;
 
@@ -224,6 +310,33 @@ function withTimeout(ms) {
   return { signal: controller.signal, clear: () => clearTimeout(timer) };
 }
 
+function errorPage(status, rawUrl, msg, tip) {
+  return `<!DOCTYPE html><html><head><title>Cannot Load Page</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#0d0e14;color:#e8e9f0;display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:16px;padding:24px;text-align:center}
+.icon{font-size:40px}
+h2{color:#f59e0b;font-size:20px;font-weight:700}
+p{color:#888;font-size:14px;max-width:460px;line-height:1.6}
+.url{color:#aaa;font-size:11px;word-break:break-all;max-width:460px;background:#161b22;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);margin:4px 0}
+.tip{font-size:12px;color:#4a9eff;max-width:460px;line-height:1.6;background:rgba(74,158,255,0.07);padding:10px 16px;border-radius:8px;border:1px solid rgba(74,158,255,0.15)}
+.btn{display:inline-flex;align-items:center;gap:6px;margin-top:4px;padding:9px 20px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:rgba(255,255,255,0.7);text-decoration:none;font-size:13px;cursor:pointer;transition:all .15s}
+.btn:hover{background:rgba(255,255,255,0.12);color:#fff}
+.btn.primary{background:rgba(229,57,53,0.15);border-color:rgba(229,57,53,0.35);color:#ef5350}
+</style></head><body>
+<div class="icon">&#9888;&#65039;</div>
+<h2>Error ${status} &mdash; Cannot Load Page</h2>
+<p>${msg}</p>
+<div class="url">${rawUrl.replace(/</g,'&lt;')}</div>
+${tip ? `<div class="tip">&#128161; ${tip}</div>` : ''}
+<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:8px">
+  <a class="btn" href="javascript:history.back()">&#8592; Go Back</a>
+  <a class="btn primary" href="${rawUrl.replace(/"/g,'&quot;')}" target="_blank" rel="noopener">Open Directly &#8599;</a>
+</div>
+</body></html>`;
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -241,15 +354,18 @@ exports.handler = async (event) => {
   if (!rawUrl) return { statusCode: 400, body: 'Missing url parameter' };
   if (!/^https?:\/\//i.test(rawUrl)) rawUrl = 'https://' + rawUrl;
 
+  // Preprocess known sites to simpler/mobile alternatives
+  const processedUrl = preprocessUrl(rawUrl);
+
   let targetUrl;
-  try { targetUrl = new URL(rawUrl); } catch (e) {
+  try { targetUrl = new URL(processedUrl); } catch (e) {
     return { statusCode: 400, body: 'Invalid URL' };
   }
 
   const { signal, clear } = withTimeout(12000);
 
   try {
-    const ua = pickUA();
+    const ua = pickUA(processedUrl);
     const fetchOptions = {
       method: (event.httpMethod === 'GET' || event.httpMethod === 'HEAD') ? event.httpMethod : 'GET',
       headers: {
@@ -262,8 +378,8 @@ exports.handler = async (event) => {
         'Referer': targetUrl.origin + '/',
         'Origin': targetUrl.origin,
         'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
+        'sec-ch-ua-mobile': ua.includes('Mobile') ? '?1' : '?0',
+        'sec-ch-ua-platform': ua.includes('Android') ? '"Android"' : '"Windows"',
         'sec-fetch-dest': 'document',
         'sec-fetch-mode': 'navigate',
         'sec-fetch-site': 'none',
@@ -284,7 +400,7 @@ exports.handler = async (event) => {
 
     const response = await fetch(targetUrl.href, fetchOptions);
     clear();
-    const finalUrl = new URL(response.url || rawUrl);
+    const finalUrl = new URL(response.url || processedUrl);
 
     const respHeaders = {
       'Access-Control-Allow-Origin': '*',
@@ -299,51 +415,62 @@ exports.handler = async (event) => {
       try { respHeaders[name] = value; } catch (e) {}
     });
 
+    // Handle redirects manually (pass them through as proxy redirects)
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location');
       if (location) {
         const abs = new URL(location, finalUrl).href;
         return {
-          statusCode: response.status,
+          statusCode: 302,
           headers: { ...respHeaders, 'Location': '/px?url=' + encodeURIComponent(abs) },
           body: '',
         };
       }
     }
 
-    // For 4xx/5xx responses from the proxied site, show a helpful error page instead
+    // For error responses from the target site, show our error page
+    // We ALWAYS return 200 so the browser doesn't show a blank/failed iframe
     if (response.status >= 400) {
       const ct = (response.headers.get('content-type') || '').toLowerCase();
-      // If it's HTML, still try to serve it (some 4xx pages are useful)
+      const statusMessages = {
+        400: 'The site rejected this request. It may require you to be logged in, or it actively blocks proxies.',
+        401: 'This page requires you to be logged in.',
+        403: 'This site is blocking proxy access.',
+        404: 'This page was not found.',
+        429: 'Too many requests. Please wait a moment and try again.',
+        451: 'This content is unavailable in your region.',
+      };
+      const msg = statusMessages[response.status] || `The site returned error ${response.status}.`;
+      const tip = response.status === 400 || response.status === 403
+        ? 'Try clicking "Open Directly" to visit the site in a new tab, or try a different URL.'
+        : null;
+
+      // If it returned a tiny HTML body (bot-detection page), show our error
+      // If it's a real HTML error page, let it through but still as 200
       if (!ct.includes('text/html') && !ct.includes('application/xhtml')) {
-        const statusText = {
-          400: 'Bad Request — The site rejected this request. It may require login or block proxies.',
-          401: 'Unauthorized — This page requires you to be logged in.',
-          403: 'Forbidden — This site is blocking proxy access.',
-          404: 'Not Found — The page does not exist.',
-          429: 'Rate Limited — Too many requests. Try again in a moment.',
-          451: 'Unavailable for Legal Reasons.',
-        };
-        const msg = statusText[response.status] || `The site returned error ${response.status}.`;
         return {
           statusCode: 200,
           headers: { ...respHeaders, 'Content-Type': 'text/html; charset=utf-8' },
-          body: `<!DOCTYPE html><html><head><title>Site Error ${response.status}</title><style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;background:#0d0e14;color:#e8e9f0;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;padding:24px}
-h2{color:#f59e0b;font-size:22px}p{color:#888;font-size:14px;max-width:480px;text-align:center;line-height:1.6}
-.url{color:#aaa;font-size:12px;word-break:break-all;max-width:480px;background:#161b22;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.08)}
-a{color:#58a6ff;font-size:14px;text-decoration:none}a:hover{text-decoration:underline}
-.tip{font-size:12px;color:#555;max-width:480px;text-align:center;line-height:1.6;background:#0d1117;padding:10px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.05)}
-</style></head><body>
-<h2>&#9888; ${response.status} — Cannot Load Page</h2>
-<p>${msg}</p>
-<div class="url">${rawUrl}</div>
-<div class="tip">&#128161; Try: searching on Google instead, or open the site directly in a new tab if you have access.</div>
-<a href="javascript:history.back()">&#8592; Go back</a>
-</body></html>`,
+          body: errorPage(response.status, rawUrl, msg, tip),
         };
       }
+      // For HTML error pages: read the body and check if it's useful
+      const body = await decodeBody(response);
+      const html = body.toString('utf8');
+      // If the body is very short (< 2kb) it's probably a bot-detection/block page
+      if (html.length < 2000) {
+        return {
+          statusCode: 200,
+          headers: { ...respHeaders, 'Content-Type': 'text/html; charset=utf-8' },
+          body: errorPage(response.status, rawUrl, msg, tip),
+        };
+      }
+      // It's a real error HTML page — rewrite and serve as 200
+      return {
+        statusCode: 200,
+        headers: { ...respHeaders, 'Content-Type': 'text/html; charset=utf-8' },
+        body: rewriteHtml(html, finalUrl),
+      };
     }
 
     const setCookies = rewriteSetCookie(response.headers);
@@ -355,10 +482,9 @@ a{color:#58a6ff;font-size:14px;text-decoration:none}a:hover{text-decoration:unde
 
     if (ct === 'text/html' || ct === 'application/xhtml+xml') {
       const body = await decodeBody(response);
-      let html = body.toString('utf8');
-      html = rewriteHtml(html, finalUrl);
+      const html = rewriteHtml(body.toString('utf8'), finalUrl);
       return {
-        statusCode: response.status,
+        statusCode: 200,
         headers: { ...respHeaders, 'Content-Type': 'text/html; charset=utf-8' },
         body: html,
       };
@@ -366,19 +492,17 @@ a{color:#58a6ff;font-size:14px;text-decoration:none}a:hover{text-decoration:unde
 
     if (ct === 'text/css') {
       const body = await decodeBody(response);
-      let css = body.toString('utf8');
-      css = rewriteCss(css, finalUrl);
       return {
-        statusCode: response.status,
+        statusCode: 200,
         headers: { ...respHeaders, 'Content-Type': 'text/css; charset=utf-8' },
-        body: css,
+        body: rewriteCss(body.toString('utf8'), finalUrl),
       };
     }
 
     if (ct === 'application/javascript' || ct === 'text/javascript' || ct === 'application/x-javascript') {
       const body = await decodeBody(response);
       return {
-        statusCode: response.status,
+        statusCode: 200,
         headers: { ...respHeaders, 'Content-Type': 'application/javascript; charset=utf-8' },
         body: body.toString('utf8'),
       };
@@ -391,7 +515,7 @@ a{color:#58a6ff;font-size:14px;text-decoration:none}a:hover{text-decoration:unde
         try { new URL(url); return '"' + toProxyUrl(url, finalUrl) + '"'; } catch (e) { return m; }
       });
       return {
-        statusCode: response.status,
+        statusCode: 200,
         headers: { ...respHeaders, 'Content-Type': 'application/json' },
         body: json,
       };
@@ -400,7 +524,7 @@ a{color:#58a6ff;font-size:14px;text-decoration:none}a:hover{text-decoration:unde
     const buf = await decodeBody(response);
     const rawCt = response.headers.get('content-type') || 'application/octet-stream';
     return {
-      statusCode: response.status,
+      statusCode: 200,
       headers: { ...respHeaders, 'Content-Type': rawCt },
       body: buf.toString('base64'),
       isBase64Encoded: true,
@@ -408,23 +532,18 @@ a{color:#58a6ff;font-size:14px;text-decoration:none}a:hover{text-decoration:unde
 
   } catch (err) {
     clear();
-    const isTimeout = err.name === 'AbortError' || err.name === 'TimeoutError' || (err.message || '').includes('timeout');
+    const isTimeout = err.name === 'AbortError' || err.name === 'TimeoutError' || (err.message || '').toLowerCase().includes('timeout') || (err.message || '').toLowerCase().includes('aborted');
     return {
-      statusCode: 502,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      body: `<!DOCTYPE html><html><head><title>Proxy Error</title><style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;background:#0d0e14;color:#e8e9f0;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;padding:24px}
-h2{color:#e53935;font-size:22px}p{color:#888;font-size:14px;max-width:480px;text-align:center;line-height:1.6}
-.url{color:#aaa;font-size:12px;word-break:break-all;max-width:480px;background:#161b22;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.08)}
-a{color:#58a6ff;font-size:14px;text-decoration:none}a:hover{text-decoration:underline}
-</style></head><body>
-<h2>${isTimeout ? '&#8987; Request Timed Out' : '&#9888; Could not load page'}</h2>
-<p>${isTimeout ? 'The request took too long. The site may be slow or blocking proxies.' : 'This site could not be loaded through the proxy. It may block server-side requests or require special handling.'}</p>
-<div class="url">${rawUrl}</div>
-<p style="font-size:12px">Error: ${(err.message || '').replace(/</g,'&lt;')}</p>
-<a href="javascript:history.back()">&#8592; Go back</a>
-</body></html>`,
+      statusCode: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8', 'Access-Control-Allow-Origin': '*' },
+      body: errorPage(
+        isTimeout ? 504 : 502,
+        rawUrl,
+        isTimeout
+          ? 'The request took too long. The site may be slow or blocking proxy connections.'
+          : 'This site could not be loaded through the proxy. It may block server-side requests or require special handling.',
+        'Try "Open Directly" to access the site in a new tab instead.'
+      ),
     };
   }
 };
