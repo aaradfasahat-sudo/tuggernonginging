@@ -3109,16 +3109,36 @@
     _createTab(url);
   }
 
+  /* Open a URL in a new tab reliably — uses anchor click to bypass window.open wrappers/popup blockers */
+  function _openNewTab(href) {
+    const a = document.createElement('a');
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { try { document.body.removeChild(a); } catch(e) {} }, 500);
+  }
+
   function launchProxyBar(query, mode) {
     const url = _resolveProxyUrl(query || '');
     if (!url) return;
     mode = mode || gs('fas_proxy_mode', 'overlay');
-    if (mode === 'overlay') { _loadInOverlay(url, true); return; }
     const proxyUrl = '/px?url=' + encodeURIComponent(url);
-    if (mode === 'direct') { window.location.href = proxyUrl; }
-    else if (mode === 'newtab') { window.open(proxyUrl, '_blank'); }
-    else if (mode === 'proxy1') { window.open('/proxy1?q=' + encodeURIComponent(url), '_blank'); }
-    else if (mode === 'proxy2') { window.open('/proxy2?q=' + encodeURIComponent(url), '_blank'); }
+
+    if (mode === 'overlay') {
+      _loadInOverlay(url, true);
+    } else if (mode === 'direct') {
+      window.location.href = proxyUrl;
+    } else if (mode === 'newtab') {
+      _openNewTab(proxyUrl);
+    } else if (mode === 'proxy1') {
+      /* Navigate the current tab directly into proxy1.html — this is exactly the same
+         as the user opening proxy1.html manually, so YouTube and all sites work identically */
+      window.location.href = '/proxy1?q=' + encodeURIComponent(url);
+    } else if (mode === 'proxy2') {
+      window.location.href = '/proxy2?q=' + encodeURIComponent(url);
+    }
   }
 
   /* =========================================================
