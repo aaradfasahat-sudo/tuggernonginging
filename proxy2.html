@@ -867,7 +867,7 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   </div>
-  <iframe id="proxy-iframe" src="about:blank" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-pointer-lock allow-downloads allow-modals" allow="autoplay; fullscreen; pointer-lock; gamepad"></iframe>
+  <iframe id="proxy-iframe" src="about:blank" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-pointer-lock allow-downloads allow-modals allow-top-navigation-by-user-activation" allow="autoplay; fullscreen; pointer-lock; gamepad"></iframe>
 </div>
 
 <script>
@@ -902,7 +902,8 @@
   const ENGINES = {
     google: q => `https://www.google.com/search?q=${encodeURIComponent(q)}`,
     bing:   q => `https://www.bing.com/search?q=${encodeURIComponent(q)}`,
-    ddg:    q => `https://duckduckgo.com/?q=${encodeURIComponent(q)}`,
+    // Use DDG HTML lite — avoids React SPA double-render in proxy iframes
+    ddg:    q => `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`,
     brave:  q => `https://search.brave.com/search?q=${encodeURIComponent(q)}`,
     yahoo:  q => `https://search.yahoo.com/search?p=${encodeURIComponent(q)}`,
   };
@@ -960,6 +961,9 @@
 
   function navigate(url) {
     url = toUrl(url);
+    // Redirect full DDG SPA → lite HTML version to prevent double-render in iframe
+    url = url.replace(/^https?:\/\/(www\.)?duckduckgo\.com\/(#.*)?$/, 'https://html.duckduckgo.com/html/')
+             .replace(/^https?:\/\/(www\.)?duckduckgo\.com\/\?/, 'https://html.duckduckgo.com/html/?');
     currentUrl = url;
 
     if (settings.blank) {
@@ -982,7 +986,7 @@
     if (!w) { alert('Pop-up blocked. Allow pop-ups for this site.'); return; }
     const d = w.document;
     d.open();
-    d.write(`<!DOCTYPE html><html><head><title>FasahatHub</title></head><body style="margin:0;overflow:hidden;background:#000"><iframe src="${pxUrl}" style="width:100vw;height:100vh;border:none;position:fixed;top:0;left:0" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-pointer-lock allow-downloads" allow="autoplay;fullscreen;pointer-lock;gamepad"></iframe></body></html>`);
+    d.write(`<!DOCTYPE html><html><head><title>FasahatHub</title></head><body style="margin:0;overflow:hidden;background:#000"><iframe src="${pxUrl}" style="width:100vw;height:100vh;border:none;position:fixed;top:0;left:0" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-pointer-lock allow-downloads allow-top-navigation-by-user-activation" allow="autoplay;fullscreen;pointer-lock;gamepad"></iframe></body></html>`);
     d.close();
   }
 

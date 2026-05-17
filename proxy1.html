@@ -544,7 +544,7 @@
     </div>
   </main>
 
-  <iframe id="proxy-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-pointer-lock allow-downloads" allow="autoplay; fullscreen; pointer-lock; gamepad"></iframe>
+  <iframe id="proxy-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-pointer-lock allow-downloads allow-top-navigation-by-user-activation" allow="autoplay; fullscreen; pointer-lock; gamepad"></iframe>
   <button id="close-proxy" onclick="closeProxy()" title="Close">&times;</button>
 
   <footer>FasahatHub &mdash; Open, fast, unrestricted browsing</footer>
@@ -556,7 +556,8 @@
   const ENGINES = {
     google: { url: 'https://www.google.com/search?q=', suggest: 'https://suggestqueries.google.com/complete/search?client=firefox&q=' },
     bing: { url: 'https://www.bing.com/search?q=', suggest: null },
-    duckduckgo: { url: 'https://duckduckgo.com/?q=', suggest: null },
+    // Use DDG HTML lite — avoids React SPA double-render in proxy iframes
+    duckduckgo: { url: 'https://html.duckduckgo.com/html/?q=', suggest: null },
     brave: { url: 'https://search.brave.com/search?q=', suggest: null },
     yahoo: { url: 'https://search.yahoo.com/search?p=', suggest: null },
   };
@@ -777,6 +778,9 @@
       const engine = gs('engine', 'google');
       url = ENGINES[engine].url + encodeURIComponent(q);
     }
+    // Redirect full DDG SPA → lite HTML version to prevent double-render
+    url = url.replace(/^https?:\/\/(www\.)?duckduckgo\.com\/(#.*)?$/, 'https://html.duckduckgo.com/html/')
+             .replace(/^https?:\/\/(www\.)?duckduckgo\.com\/\?/, 'https://html.duckduckgo.com/html/?');
 
     const ab = gs('aboutBlank', false);
     if (ab) {
@@ -806,6 +810,7 @@
     const iframe = d.createElement('iframe');
     iframe.src = pxUrl;
     iframe.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;border:none;';
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-pointer-lock allow-downloads allow-top-navigation-by-user-activation');
     iframe.setAttribute('allow', 'autoplay; fullscreen; pointer-lock; gamepad');
     d.body.appendChild(iframe);
   }
