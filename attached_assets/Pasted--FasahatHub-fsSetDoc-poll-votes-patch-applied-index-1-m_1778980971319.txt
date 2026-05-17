@@ -1,0 +1,45 @@
+[FasahatHub] fsSetDoc poll-votes patch applied
+(index):1 <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes">Understand this warning
+(index):1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
+inject.js?v=30:3542 [FasahatHub Extensions] ✓ Loaded v4
+inject.js?v=30:2960 Unrecognized feature: 'pointer-lock'.
+_createTab @ inject.js?v=30:2960
+_loadInOverlay @ inject.js?v=30:3074
+(anonymous) @ inject.js?v=30:3535
+setTimeout
+init @ inject.js?v=30:3534
+setTimeout
+(anonymous) @ inject.js?v=30:3681
+(anonymous) @ inject.js?v=30:3682Understand this warning
+7An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.Understand this warning
+120The FetchEvent for "<URL>" resulted in a network error response: the promise was rejected.Understand this warning
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21
+(anonymous) @ sw.js:15Understand this error
+px?url=https%3A%2F%2Ftiktok.com:47  GET https://8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev/node/extra/api/monitor/collect?event=t0&header=%7B%22device%22%3A%22mobile%22%2C%22launch_mode%22%3A%22direct%22%7D&params=%7B%22page_name%22%3A%22homepage_hot%22%7D net::ERR_FAILEDUnderstand this error
+px?url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fcore.js%3FglobalName%3D__PNS_RUNTIME__:1 Uncaught SyntaxError: Unexpected token '<' (at px?url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fcore.js%3FglobalName%3D__PNS_RUNTIME__:1:1)
+PendingScript
+HTMLElement.appendChild @ injectScript.js:1
+(anonymous) @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok_privacy_protection_framework%2Floader%2F2.0.0.310%2Findex.js:4
+(anonymous) @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok_privacy_protection_framework%2Floader%2F2.0.0.310%2Findex.js:4
+(anonymous) @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok_privacy_protection_framework%2Floader%2F2.0.0.310%2Findex.js:4
+(anonymous) @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok_privacy_protection_framework%2Floader%2F2.0.0.310%2Findex.js:4Understand this error
+px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok%2Fwebapp%2Fmain%2Fmobile%2Fapp_portal%2Fstatic%2Fjs%2Fcache.boot_basic.ecab9167.js:2 Reflect is already polyfilled.
+15177 @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok%2Fwebapp%2Fmain%2Fmobile%2Fapp_portal%2Fstatic%2Fjs%2Fcache.boot_basic.ecab9167.js:2
+i @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok%2Fwebapp%2Fmain%2Fmobile%2Fapp_portal%2Fstatic%2Fjs%2Fbuilder-runtime.1710ad31.js:1
+33436 @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok%2Fwebapp%2Fmain%2Fmobile%2Fapp_portal%2Fstatic%2Fjs%2Fmain.2bb9384c.js:1
+i @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok%2Fwebapp%2Fmain%2Fmobile%2Fapp_portal%2Fstatic%2Fjs%2Fbuilder-runtime.1710ad31.js:1
+t @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok%2Fwebapp%2Fmain%2Fmobile%2Fapp_portal%2Fstatic%2Fjs%2Fmain.2bb9384c.js:1
+(anonymous) @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok%2Fwebapp%2Fmain%2Fmobile%2Fapp_portal%2Fstatic%2Fjs%2Fmain.2bb9384c.js:1
+i.O @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok%2Fwebapp%2Fmain%2Fmobile%2Fapp_portal%2Fstatic%2Fjs%2Fbuilder-runtime.1710ad31.js:1
+(anonymous) @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok%2Fwebapp%2Fmain%2Fmobile%2Fapp_portal%2Fstatic%2Fjs%2Fmain.2bb9384c.js:1
+r @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok%2Fwebapp%2Fmain%2Fmobile%2Fapp_portal%2Fstatic%2Fjs%2Fbuilder-runtime.1710ad31.js:1
+(anonymous) @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok%2Fwebapp%2Fmain%2Fmobile%2Fapp_portal%2Fstatic%2Fjs%2Fmain.2bb9384c.js:1Understand this warning
+VM1572 px:1 [RemoteLoader] loadPage: {"pageName":"NotFoundRedirect","vmokId":"__fake_legacy_page_module__"}
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21
+(anonymous) @ sw.js:15
+network request
+window.fetch @ px?url=https%3A%2F%2Ftiktok.com:8
+h @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok_privacy_protection_framework%2Floader%2F2.0.0.310%2Findex.js:4
+window.fetch @ px?url=https%3A%2F%2Flf16-tiktok-web.tiktokcdn-us.com%2Fobj%2Ftiktok-web-tx%2Ftiktok_privacy_protection_fram...

@@ -2957,7 +2957,7 @@
     iframe.id = 'fas-pov-frame-' + id;
     iframe.style.cssText = 'width:100%;height:100%;border:none;display:none;background:#fff;';
     iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-pointer-lock allow-downloads allow-modals');
-    iframe.setAttribute('allow', 'autoplay; fullscreen; pointer-lock; gamepad; clipboard-read; clipboard-write');
+    iframe.setAttribute('allow', 'autoplay; fullscreen; gamepad; clipboard-read; clipboard-write');
 
     // Tab button
     const tabEl = document.createElement('div');
@@ -3819,11 +3819,16 @@
      GAME PROGRESS SAVING
      When signed in, syncs favorites + last-played + play time
      to Firestore players/{uid} so progress is never lost.
+     Play time is saved every 10 seconds while a game is open.
   ========================================================= */
   (function () {
     var _gpDebTimer = null;
     var _gpPlayStart = null;
     var _gpCurGame = null;
+    var _gpAutoSaveTimer = null;  // 10-second interval handle
+    var _gpStoredTotal = 0;       // seconds in Firestore at game-open time
+    var _gpAccumulated = 0;       // seconds added this session (not yet persisted)
+    var _gpLastSaveTs = 0;        // Date.now() of the last flush
 
     function _gpUser() { return window.__FIREBASE_USER__ || window.__USER__ || null; }
 
@@ -3891,6 +3896,30 @@
       });
     } catch (e) {}
 
+    // ── Safe Firestore field key from URL ─────────────────
+    function _gpFieldKey(url) {
+      return (url || 'unknown').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 80);
+    }
+
+    // ── Write accumulated play time to Firestore ───────────
+    function _gpFlushTime() {
+      if (!_gpCurGame || !_gpFbReady()) return;
+      var user = _gpUser();
+      if (!user || !user.uid) return;
+      var fk = _gpFieldKey(_gpCurGame.url);
+      var total = _gpStoredTotal + _gpAccumulated;
+      if (total < 1) return;
+      var update = { gamePlayTime: {} };
+      update.gamePlayTime[fk] = total;
+      try {
+        window.fsSetDoc(
+          window.fsDoc(window.db, 'players', user.uid),
+          update,
+          { merge: true }
+        );
+      } catch (e) {}
+    }
+
     // ── Record a game opening ──────────────────────────────
     function _gpOnGameOpen(iframe) {
       var src = iframe.src || '';
@@ -3898,6 +3927,9 @@
       if (!src && !hasSrcdoc) return;
       if (src === 'about:blank' || src.includes(location.hostname)) return;
       if (iframe.id && (iframe.id.startsWith('fas-pov-') || iframe.id === 'proxy-frame' || iframe.id === 'proxy-iframe')) return;
+
+      // Ignore if a game is already tracked (avoid duplicates)
+      if (_gpCurGame) return;
 
       // Try to grab the game title from nearby heading
       var title = '';
@@ -3919,52 +3951,64 @@
 
       _gpCurGame = { title: title, url: src || 'srcdoc', ts: Date.now() };
       _gpPlayStart = Date.now();
+      _gpLastSaveTs = Date.now();
+      _gpAccumulated = 0;
+      _gpStoredTotal = 0;
 
       var user = _gpUser();
-      if (!user || !user.uid || !_gpFbReady()) return;
-      try {
-        window.fsSetDoc(
-          window.fsDoc(window.db, 'players', user.uid),
-          { lastPlayedGame: { title: title, url: _gpCurGame.url, timestamp: Date.now() } },
-          { merge: true }
-        );
-      } catch (e) {}
+      if (user && user.uid && _gpFbReady()) {
+        // Save last-played game immediately
+        try {
+          window.fsSetDoc(
+            window.fsDoc(window.db, 'players', user.uid),
+            { lastPlayedGame: { title: title, url: _gpCurGame.url, timestamp: Date.now() } },
+            { merge: true }
+          );
+        } catch (e) {}
+        // Load the stored play-time total so we can accumulate on top of it
+        var fk = _gpFieldKey(_gpCurGame.url);
+        window.fsGetDoc(window.fsDoc(window.db, 'players', user.uid))
+          .then(function (doc) {
+            if (doc.exists()) {
+              _gpStoredTotal = Number(((doc.data() || {}).gamePlayTime || {})[fk] || 0);
+            }
+          })
+          .catch(function () {});
+      }
+
+      // ── 10-second autosave interval ────────────────────
+      clearInterval(_gpAutoSaveTimer);
+      _gpAutoSaveTimer = setInterval(function () {
+        if (!_gpCurGame) { clearInterval(_gpAutoSaveTimer); return; }
+        var now = Date.now();
+        var delta = Math.round((now - _gpLastSaveTs) / 1000);
+        _gpLastSaveTs = now;
+        if (delta > 0) {
+          _gpAccumulated += delta;
+          _gpFlushTime();
+        }
+      }, 10000);
     }
 
     // ── Record play time when game iframe disappears ───────
     function _gpOnGameClose() {
-      if (!_gpPlayStart || !_gpCurGame) return;
-      var elapsed = Math.round((Date.now() - _gpPlayStart) / 1000);
+      if (!_gpCurGame) return;
+
+      // Stop the autosave interval
+      clearInterval(_gpAutoSaveTimer);
+      _gpAutoSaveTimer = null;
+
+      // Flush any remaining seconds since the last 10s tick
+      var remaining = Math.round((Date.now() - _gpLastSaveTs) / 1000);
+      if (remaining > 0) _gpAccumulated += remaining;
+
+      if (_gpAccumulated >= 5) _gpFlushTime(); // ignore <5s sessions
+
       _gpPlayStart = null;
-      var game = _gpCurGame;
       _gpCurGame = null;
-      if (elapsed < 5) return; // ignore accidental flicks
-
-      var user = _gpUser();
-      if (!user || !user.uid || !_gpFbReady()) return;
-
-      // Safe Firestore field key from game URL
-      var fieldKey = (game.url || 'unknown').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 80);
-
-      // Read current value then add elapsed (no FieldValue.increment needed)
-      window.fsGetDoc(window.fsDoc(window.db, 'players', user.uid))
-        .then(function (doc) {
-          var cur = 0;
-          if (doc.exists()) {
-            var pt = (doc.data() || {}).gamePlayTime || {};
-            cur = Number(pt[fieldKey] || 0);
-          }
-          var update = { gamePlayTime: {} };
-          update.gamePlayTime[fieldKey] = cur + elapsed;
-          try {
-            window.fsSetDoc(
-              window.fsDoc(window.db, 'players', user.uid),
-              update,
-              { merge: true }
-            );
-          } catch (e) {}
-        })
-        .catch(function () {});
+      _gpAccumulated = 0;
+      _gpStoredTotal = 0;
+      _gpLastSaveTs = 0;
     }
 
     // ── MutationObserver: detect game iframes ──────────────

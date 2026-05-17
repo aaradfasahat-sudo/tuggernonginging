@@ -193,8 +193,12 @@ function _getUpstreamBase(){try{var m=location.search.match(/[?&]url=([^&]+)/);i
 function tp(u){try{if(!u||typeof u!=='string'||u.startsWith(P)||u.startsWith('data:')||u.startsWith('blob:')||u.startsWith('javascript:'))return u;if(u.startsWith('//')){var up=_getUpstreamBase();var proto=up?new URL(up).protocol:'https:';u=proto+u;}var base=_getUpstreamBase()||location.href;var a=new URL(u,base).href;if(a.startsWith('http://')||a.startsWith('https://'))return P+encodeURIComponent(a);}catch(e){}return u;}
 /* XHR — must set arguments[1] explicitly so the browser sees the change */
 var _xo=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){try{arguments[1]=tp(String(u));}catch(e){}return _xo.apply(this,arguments);};
-/* fetch — only handle string input; do NOT reconstruct Request objects (body is a once-read stream) */
-var _fe=window.fetch;window.fetch=function(i,o){try{if(typeof i==='string')i=tp(i);}catch(e){}return _fe.call(this,i,o);};
+/* fetch — handle both string URLs and Request objects */
+var _fe=window.fetch;window.fetch=function(i,o){try{if(typeof i==='string'){i=tp(i);}else if(i&&typeof i==='object'&&i.url){var _nu=tp(String(i.url));if(_nu!==i.url){try{i=new Request(_nu,i);}catch(e){}}}}catch(e){}return _fe.call(this,i,o);};
+/* navigator.sendBeacon — rewrite URL so analytics calls go through the proxy */
+if(navigator.sendBeacon){var _sb=navigator.sendBeacon.bind(navigator);navigator.sendBeacon=function(u,d){try{u=tp(String(u));}catch(e){}return _sb(u,d);};}
+/* Element.prototype.setAttribute — catches setAttribute('src','...') which bypasses prototype setters */
+(function(){var _sa=Element.prototype.setAttribute;Element.prototype.setAttribute=function(n,v){try{var ln=(n||'').toLowerCase();if(typeof v==='string'&&(ln==='src'||ln==='href'||ln==='action'||ln==='data'||ln==='srcset')){if(ln==='srcset'){v=v.split(',').map(function(part){var s=part.trim().split(/\s+/);if(s[0])s[0]=tp(s[0]);return s.join(' ');}).join(', ');}else{v=tp(v);}}}catch(e){}return _sa.call(this,n,v);};})();
 /* Anchor clicks — resolve against upstream base so relative paths go to the real site */
 document.addEventListener('click',function(e){var a=e.target.closest('a[href]');if(!a)return;var h=a.getAttribute('href');if(!h||h.startsWith('#')||h.startsWith('javascript:')||h.startsWith('mailto:')||h.startsWith('tel:'))return;try{var base=_getUpstreamBase()||location.href;if(h.startsWith('//')){h=(new URL(base)).protocol+h;}var ab=new URL(h,base).href;if((ab.startsWith('http://')||ab.startsWith('https://'))&&ab.indexOf(P)===-1){e.preventDefault();location.href=P+encodeURIComponent(ab);}}catch(x){}},true);
 /* Form submit — resolve action against upstream base */
