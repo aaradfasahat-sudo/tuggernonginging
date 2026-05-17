@@ -103,41 +103,6 @@ const STRIP_RES_HEADERS = new Set([
 const cookieJar = {};
 
 function pickUA() { return USER_AGENTS[Math.random() * USER_AGENTS.length | 0]; }
-
-// ── URL preprocessing (passthrough — fetch everything directly via proxy) ──
-function preprocessUrl(rawUrl) {
-  return rawUrl;
-}
-
-function errorPageHtml(status, rawUrl, msg, tip) {
-  const safeUrl = (rawUrl || '').replace(/</g,'&lt;').replace(/"/g,'&quot;');
-  return `<!DOCTYPE html><html><head><title>Cannot Load Page</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;background:#0d0e14;color:#e8e9f0;display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:16px;padding:24px;text-align:center}
-.icon{font-size:40px}.lbl{color:#f59e0b;font-size:20px;font-weight:700}
-p{color:#888;font-size:14px;max-width:460px;line-height:1.6}
-.url{color:#aaa;font-size:11px;word-break:break-all;max-width:460px;background:#161b22;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.08)}
-.tip{font-size:12px;color:#4a9eff;max-width:460px;background:rgba(74,158,255,0.07);padding:10px 16px;border-radius:8px;border:1px solid rgba(74,158,255,0.15)}
-.btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:4px}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:rgba(255,255,255,0.7);text-decoration:none;font-size:13px;cursor:pointer}
-.btn:hover{background:rgba(255,255,255,0.12);color:#fff}
-.btn.red{background:rgba(229,57,53,0.12);border-color:rgba(229,57,53,0.3);color:#ef5350}
-</style></head><body>
-<div class="icon">&#9888;&#65039;</div>
-<div class="lbl">Error ${status} &mdash; Cannot Load Page</div>
-<p>${msg}</p>
-<div class="url">${safeUrl}</div>
-${tip ? `<div class="tip">&#128161; ${tip}</div>` : ''}
-<div class="btns">
-  <a class="btn" href="javascript:history.back()">&#8592; Go Back</a>
-  <a class="btn red" href="${safeUrl}" target="_blank" rel="noopener">Open Directly &#8599;</a>
-  <a class="btn" href="/px?url=${encodeURIComponent(rawUrl || '')}">&#8635; Retry</a>
-</div>
-</body></html>`;
-}
-
 function randomIp() {
   const a = 10 + (Math.random() * 200 | 0);
   const b = Math.random() * 255 | 0;
@@ -501,13 +466,8 @@ app.all('/px', async (req, res) => {
   let rawUrl = req.query.url;
   if (!rawUrl) return res.status(400).send('Missing url parameter');
   if (!/^https?:\/\//i.test(rawUrl)) rawUrl = 'https://' + rawUrl;
-
-  // Rewrite known hard-to-proxy sites to friendlier alternatives
-  const processedUrl = preprocessUrl(rawUrl);
-
-
   let targetUrl;
-  try { targetUrl = new URL(processedUrl); } catch { return res.status(400).send('Invalid URL'); }
+  try { targetUrl = new URL(rawUrl); } catch { return res.status(400).send('Invalid URL'); }
 
   const domain = getDomain(targetUrl.href);
   const resourceType = detectResourceType(targetUrl.pathname + targetUrl.search);
@@ -573,50 +533,57 @@ app.all('/px', async (req, res) => {
         if (location) {
           const abs = new URL(location, finalUrl).href;
           res.setHeader('Location', '/px?url=' + encodeURIComponent(abs));
-          return res.status(302).end();
+          return res.status(response.status).end();
         }
       }
 
       const ct = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
 
-      // For 4xx/5xx from the target site — NEVER forward these status codes to the browser.
-      // A 400/403/429 in an iframe src causes the browser to show nothing (white/black screen).
+      // For 4xx/5xx — never forward these status codes to the browser.
+      // A 4xx iframe src causes the browser to show nothing (white/black screen).
       if (response.status >= 400) {
-        const statusMessages = {
+        const msgs = {
           400: 'The site rejected this request. It may require login or actively blocks proxies.',
           401: 'This page requires you to be logged in.',
           403: 'This site is blocking proxy access.',
-          404: 'This page was not found on the remote site.',
+          404: 'Page not found on the remote site.',
           429: 'Too many requests — the site is rate-limiting. Please wait a moment.',
-          451: 'This content is unavailable in your region.',
           500: 'The site returned an internal server error.',
-          502: 'The site returned a bad gateway error.',
+          502: 'Bad gateway from the remote site.',
           503: 'The site is temporarily unavailable.',
         };
-        const msg = statusMessages[response.status] || `The site returned error ${response.status}.`;
-        const tip = (response.status === 400 || response.status === 403)
-          ? 'Click "Open Directly" to visit the site in a new tab, or try a different URL.'
-          : null;
-
-        // If the site returned HTML, read it — if it's substantial, serve it (rewritten); otherwise our error page
+        const msg = msgs[response.status] || `The site returned error ${response.status}.`;
+        // If the target returned substantial HTML (real error page), rewrite + serve it
         if (ct === 'text/html' || ct === 'application/xhtml+xml') {
           const html = await response.text();
           if (html.length > 2000) {
-            // Real HTML error page — rewrite and serve as 200
-            res.removeHeader('content-length');
-            res.removeHeader('content-encoding');
+            res.removeHeader('content-length'); res.removeHeader('content-encoding');
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
             return res.status(200).send(rewriteHtml(html, finalUrl, domain));
           }
         }
-        // Short/non-HTML response — show our styled error page
-        res.removeHeader('content-length');
-        res.removeHeader('content-encoding');
+        // Short / non-HTML — show our styled error page
+        res.removeHeader('content-length'); res.removeHeader('content-encoding');
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        return res.status(200).send(errorPageHtml(response.status, rawUrl, msg, tip));
+        const safe = rawUrl.replace(/</g,'&lt;').replace(/"/g,'&quot;');
+        return res.status(200).send(`<!DOCTYPE html><html><head><title>Cannot Load Page</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,sans-serif;background:#0d0e14;color:#e8e9f0;display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:14px;padding:24px;text-align:center}.icon{font-size:38px}.lbl{color:#f59e0b;font-size:20px;font-weight:700}p{color:#888;font-size:14px;max-width:460px;line-height:1.6}.url{color:#aaa;font-size:11px;word-break:break-all;max-width:460px;background:#161b22;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.08)}.tip{font-size:12px;color:#4a9eff;max-width:460px;background:rgba(74,158,255,0.07);padding:10px 16px;border-radius:8px;border:1px solid rgba(74,158,255,0.15)}.btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:rgba(255,255,255,0.7);text-decoration:none;font-size:13px}.btn:hover{background:rgba(255,255,255,0.12);color:#fff}.btn.red{background:rgba(229,57,53,0.12);border-color:rgba(229,57,53,0.3);color:#ef5350}</style>
+</head><body>
+<div class="icon">&#9888;&#65039;</div>
+<div class="lbl">Error ${response.status} &mdash; Cannot Load Page</div>
+<p>${msg}</p>
+<div class="url">${safe}</div>
+<div class="tip">&#128161; Try opening directly in a new tab, or retry — sometimes sites temporarily block proxies.</div>
+<div class="btns">
+  <a class="btn" href="javascript:history.back()">&#8592; Go Back</a>
+  <a class="btn red" href="${safe}" target="_blank" rel="noopener">Open Directly &#8599;</a>
+  <a class="btn" href="/px?url=${encodeURIComponent(rawUrl)}">&#8635; Retry</a>
+</div>
+</body></html>`);
       }
 
-      // ── Successful response (2xx) ─────────────────────────────
+      res.status(response.status);
 
       // HTML — rewrite and inject proxy (use text() — Node fetch auto-decompresses)
       if (ct === 'text/html' || ct === 'application/xhtml+xml') {
@@ -625,7 +592,7 @@ app.all('/px', async (req, res) => {
         res.removeHeader('content-length');
         res.removeHeader('content-encoding');
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        return res.status(200).send(html);
+        return res.send(html);
       }
 
       // CSS — rewrite URLs
@@ -635,7 +602,7 @@ app.all('/px', async (req, res) => {
         res.removeHeader('content-length');
         res.removeHeader('content-encoding');
         res.setHeader('Content-Type', 'text/css; charset=utf-8');
-        return res.status(200).send(css);
+        return res.send(css);
       }
 
       // JSON — pass through as-is; rewriting URLs inside JSON breaks YouTube/API responses
@@ -645,7 +612,7 @@ app.all('/px', async (req, res) => {
         res.removeHeader('content-length');
         res.removeHeader('content-encoding');
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        return res.status(200).send(buf);
+        return res.send(buf);
       }
 
       // JavaScript — light rewrite
@@ -655,7 +622,7 @@ app.all('/px', async (req, res) => {
         res.removeHeader('content-length');
         res.removeHeader('content-encoding');
         res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-        return res.status(200).send(js);
+        return res.send(js);
       }
 
       // Binary / other
@@ -666,7 +633,7 @@ app.all('/px', async (req, res) => {
       // Cache cacheable resources
       if (isCacheable && buf.length < 500000) cacheSet(cacheKey, buf, resourceType);
 
-      return res.status(200).send(buf);
+      return res.send(buf);
 
     } catch (err) {
       if (attempt < maxRetries) continue;
