@@ -183,83 +183,27 @@ function toProxyUrl(url, base) {
 
 // ── HTML rewriting ───────────────────────────────────────────
 function rewriteHtml(html, base, domain) {
-  // Inject proxy script (inline, minified)
-  const injectScript = `<script>
-(function(){
-// tp(): convert an absolute http/https URL to a proxied /px?url= URL.
-// Already-proxied URLs and non-http schemes are returned unchanged.
-function tp(u,r){
-  try{
-    if(!u||u.indexOf('/px?url=')!==-1)return u;
-    var a=new URL(String(u),r||location.href).href;
-    if(a.startsWith('http'))return'/px?url='+encodeURIComponent(a);
-  }catch(e){}return u;
-}
-// XHR intercept
-var _xo=XMLHttpRequest.prototype.open;
-XMLHttpRequest.prototype.open=function(m,u){
-  try{u=tp(String(u));}catch(e){}
-  return _xo.apply(this,arguments);
-};
-// fetch intercept — preserve Request objects
-var _fe=window.fetch;
-window.fetch=function(u,o){
-  try{
-    if(typeof u==='string'){u=tp(u);}
-    else if(u instanceof Request){
-      var pu=tp(u.url);
-      if(pu!==u.url)u=new Request(pu,{method:u.method,headers:u.headers,body:u.body,mode:'cors',credentials:u.credentials,redirect:u.redirect});
-    }
-  }catch(e){}
-  return _fe.call(window,u,o);
-};
-// Link click intercept — only intercept external origins
-document.addEventListener('click',function(e){
-  var a=e.target.closest('a[href]');
-  if(!a)return;
-  var h=a.getAttribute('href');
-  if(!h||h.startsWith('#')||h.startsWith('javascript:'))return;
-  try{
-    var ab=new URL(h,location.href).href;
-    if(ab.startsWith('http')&&ab.indexOf('/px?url=')===-1){
-      e.preventDefault();
-      location.href='/px?url='+encodeURIComponent(ab);
-    }
-  }catch(ex){}
-},true);
-// Form submit intercept
-document.addEventListener('submit',function(e){
-  var f=e.target;
-  if(!f||!f.action)return;
-  try{
-    var fa=new URL(f.action,location.href).href;
-    if(!fa.startsWith('http')||fa.indexOf('/px?url=')!==-1)return;
-    e.preventDefault();
-    var method=(f.method||'GET').toUpperCase();
-    var d=new URLSearchParams(new FormData(f)).toString();
-    var sep=fa.includes('?')?'&':'?';
-    if(method==='POST'){location.href='/px?url='+encodeURIComponent(fa)+(d?'&_body='+encodeURIComponent(d):'');}
-    else{location.href='/px?url='+encodeURIComponent(fa+(d?sep+d:''));}
-  }catch(ex){}
-},true);
-// history.pushState / replaceState
-['pushState','replaceState'].forEach(function(fn){
-  var o=history[fn];
-  history[fn]=function(s,t,u){
-    if(u){try{var a=new URL(String(u),location.href).href;if(a.startsWith('http')&&a.indexOf('/px?url=')===-1)u='/px?url='+encodeURIComponent(a);}catch(e){}}
-    return o.call(this,s,t,u);
-  };
-});
-// window.open
-var _op=window.open;
-window.open=function(u,t,f){if(u&&typeof u==='string'){u=tp(u);}return _op.call(window,u,t,f);};
-// location.assign / replace
-var _lo=Location.prototype.assign;
-Location.prototype.assign=function(u){return _lo.call(location,tp(String(u)));};
-var _lr=Location.prototype.replace;
-Location.prototype.replace=function(u){return _lr.call(location,tp(String(u)));};
-// Disable service-worker registration (breaks proxied pages)
-if(navigator.serviceWorker){try{Object.defineProperty(navigator,'serviceWorker',{get:function(){return{register:function(){return Promise.resolve({scope:'/'});},getRegistrations:function(){return Promise.resolve([]);}};}});}catch(e){}}
+  // Inject proxy script (inline)
+  const injectScript = `<script>(function(){
+var P='/px?url=';
+/* tp: rewrite absolute http/https URL to proxy path. Already-proxied & non-http pass through unchanged. */
+function tp(u){try{if(!u||typeof u!=='string'||u.startsWith(P)||u.startsWith('data:')||u.startsWith('blob:'))return u;var a=new URL(u,location.href).href;if(a.startsWith('http://') ||a.startsWith('https://'))return P+encodeURIComponent(a);}catch(e){}return u;}
+/* XHR — must set arguments[1] explicitly so the browser sees the change */
+var _xo=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){try{arguments[1]=tp(String(u));}catch(e){}return _xo.apply(this,arguments);};
+/* fetch — only handle string input; do NOT reconstruct Request objects (body is a once-read stream) */
+var _fe=window.fetch;window.fetch=function(i,o){try{if(typeof i==='string')i=tp(i);}catch(e){}return _fe.call(this,i,o);};
+/* Anchor clicks */
+document.addEventListener('click',function(e){var a=e.target.closest('a[href]');if(!a)return;var h=a.getAttribute('href');if(!h||h.startsWith('#')||h.startsWith('javascript:'))return;try{var ab=new URL(h,location.href).href;if((ab.startsWith('http://')||ab.startsWith('https://'))&&ab.indexOf(P)===-1){e.preventDefault();location.href=P+encodeURIComponent(ab);}}catch(x){}},true);
+/* Form submit */
+document.addEventListener('submit',function(e){var f=e.target;if(!f)return;try{var fa=new URL(f.action||'',location.href).href;if(!fa.startsWith('http')||fa.indexOf(P)!==-1)return;e.preventDefault();var m=(f.method||'GET').toUpperCase(),d=new URLSearchParams(new FormData(f)).toString(),sep=fa.indexOf('?')>=0?'&':'?';if(m==='GET'){location.href=P+encodeURIComponent(fa+(d?sep+d:''));}else{location.href=P+encodeURIComponent(fa)+(d?'&_body='+encodeURIComponent(d):'');}}catch(x){}},true);
+/* pushState / replaceState — only rewrite cross-origin URLs */
+['pushState','replaceState'].forEach(function(fn){var orig=history[fn];history[fn]=function(st,ti,url){if(url!=null){try{var a=new URL(String(url),location.href).href;if((a.startsWith('http://')||a.startsWith('https://'))&&!a.startsWith(location.origin+'/')){url=P+encodeURIComponent(a);}}catch(e){}}return orig.call(this,st,ti,url);};});
+/* window.open */
+var _wo=window.open;window.open=function(u,n,f){if(typeof u==='string')u=tp(u);return _wo.call(this,u,n,f);};
+/* location.assign / replace */
+try{var _la=Location.prototype.assign;Location.prototype.assign=function(u){return _la.call(this,tp(String(u)));};var _lr=Location.prototype.replace;Location.prototype.replace=function(u){return _lr.call(this,tp(String(u)));};}catch(e){}
+/* Block service workers — they hijack fetch and break the proxy */
+try{Object.defineProperty(navigator,'serviceWorker',{get:function(){return{register:function(){return Promise.resolve({scope:'/'});},getRegistrations:function(){return Promise.resolve([]);},addEventListener:function(){}};},configurable:true});}catch(e){}
 })();</script>`;
 
   // Remove <base> tags
