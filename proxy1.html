@@ -857,12 +857,30 @@
     }
   };
 
+  function _ytToPiped(rawUrl) {
+    try {
+      var u = new URL(rawUrl);
+      var h = u.hostname.toLowerCase();
+      var isYT = (h === 'youtube.com' || h === 'www.youtube.com' || h === 'm.youtube.com' || h === 'music.youtube.com');
+      var isShort = (h === 'youtu.be');
+      if (!isYT && !isShort) return null;
+      if (isShort) { var id = u.pathname.replace(/^\//, '').split('/')[0]; return id ? 'https://piped.video/watch?v=' + id : 'https://piped.video/'; }
+      var v = u.searchParams.get('v'); if (v) return 'https://piped.video/watch?v=' + v;
+      var list = u.searchParams.get('list'); if (list) return 'https://piped.video/playlist?list=' + list;
+      var q = u.searchParams.get('search_query') || u.searchParams.get('q'); if (q) return 'https://piped.video/results?search_query=' + encodeURIComponent(q);
+      var shorts = u.pathname.match(/^\/shorts\/([^/?#]+)/); if (shorts) return 'https://piped.video/watch?v=' + shorts[1];
+      if (/^\/@|^\/c\/|^\/user\/|^\/channel\//.test(u.pathname)) return 'https://piped.video' + u.pathname + (u.search || '');
+      return 'https://piped.video/';
+    } catch(e) { return null; }
+  }
+
   function openProxy(url) {
     const frame = document.getElementById('proxy-frame');
     const closeBtn = document.getElementById('close-proxy');
     const urlBar = document.getElementById('proxy-url-bar');
     const urlInput = document.getElementById('proxy-url-bar-input');
-    frame.src = '/px?url=' + encodeURIComponent(url);
+    const _piped = _ytToPiped(url);
+    frame.src = _piped ? _piped : '/px?url=' + encodeURIComponent(url);
     frame.classList.add('active');
     closeBtn.classList.add('active');
     urlBar.classList.add('active');
@@ -907,7 +925,8 @@
   }
 
   function openAboutBlank(url) {
-    const pxUrl = '/px?url=' + encodeURIComponent(url);
+    const _piped2 = _ytToPiped(url);
+    const pxUrl = _piped2 ? _piped2 : '/px?url=' + encodeURIComponent(url);
     const w = window.open('about:blank', '_blank');
     if (!w) { openProxy(url); return; }
     const d = w.document;

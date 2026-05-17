@@ -242,8 +242,6 @@ try{var _la=Location.prototype.assign;Location.prototype.assign=function(u){retu
 try{Object.defineProperty(window,'top',{get:function(){return window;},configurable:true});}catch(e){}
 try{Object.defineProperty(window,'parent',{get:function(){return window;},configurable:true});}catch(e){}
 try{Object.defineProperty(window,'frameElement',{get:function(){return null;},configurable:true});}catch(e){}
-/* Spoof window.location to reflect the upstream URL so sites like YouTube see their own domain */
-try{(function(){var _ub=_getUpstreamBase();if(!_ub)return;var _uu;try{_uu=new URL(_ub);}catch(e){return;}var _realLoc=window.location;var _mkLoc=function(){var o=Object.create(_realLoc);Object.defineProperties(o,{hostname:{get:function(){return _uu.hostname;},configurable:true},host:{get:function(){return _uu.host;},configurable:true},origin:{get:function(){return _uu.origin;},configurable:true},protocol:{get:function(){return _uu.protocol;},configurable:true},port:{get:function(){return _uu.port;},configurable:true},pathname:{get:function(){var m=_realLoc.search.match(/[?&]url=([^&]+)/);if(m)try{return new URL(decodeURIComponent(m[1])).pathname;}catch(e){}return '/';},configurable:true},href:{get:function(){var m=_realLoc.search.match(/[?&]url=([^&]+)/);if(m)try{return decodeURIComponent(m[1]);}catch(e){}return _uu.href;},configurable:true},toString:{value:function(){return this.href;},configurable:true}});return o;};var _spoofed=_mkLoc();Object.defineProperty(window,'location',{get:function(){return _spoofed;},configurable:true});Object.defineProperty(document,'location',{get:function(){return _spoofed;},configurable:true});})();}catch(e){}
 /* Block service workers — they hijack fetch and break the proxy */
 try{Object.defineProperty(navigator,'serviceWorker',{get:function(){return{register:function(){return Promise.resolve({scope:'/'});},getRegistrations:function(){return Promise.resolve([]);},addEventListener:function(){}};},configurable:true});}catch(e){}
 /* Spoof navigator.getInstalledRelatedApps — only works in top-level context; throws inside iframes */
@@ -367,7 +365,46 @@ const RESOURCE_HEADERS = {
   fetch: { 'Accept': 'application/json,text/plain,*/*', 'Sec-Fetch-Dest': 'empty', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'same-origin' },
 };
 
-function buildUpstreamHeaders(clientReq, targetUrl, isRetry) {
+// ── URL preprocessing: rewrite IP-blocked sites to working alternatives ──────
+// piped.video is a YouTube-compatible frontend reachable from Replit's IP.
+// URL format mirrors YouTube 1-to-1 so all paths map cleanly.
+function rewriteYouTubeToPiped(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    const host = u.hostname.toLowerCase();
+    // Don't rewrite if already on piped.video (avoid loops)
+    if (host.includes('piped.video')) return rawUrl;
+    const v = u.searchParams.get('v');
+    if (v) return `https://piped.video/watch?v=${v}${u.searchParams.get('t') ? '&t=' + u.searchParams.get('t') : ''}`;
+    const list = u.searchParams.get('list');
+    if (list) return `https://piped.video/playlist?list=${list}`;
+    const q = u.searchParams.get('search_query') || u.searchParams.get('q');
+    if (q) return `https://piped.video/results?search_query=${encodeURIComponent(q)}`;
+    // Shorts → watch page on piped
+    const shorts = u.pathname.match(/^\/shorts\/([^/?#]+)/);
+    if (shorts) return `https://piped.video/watch?v=${shorts[1]}`;
+    // Channel / user pages
+    if (u.pathname.startsWith('/@') || u.pathname.startsWith('/c/') || u.pathname.startsWith('/user/') || u.pathname.startsWith('/channel/')) {
+      return `https://piped.video${u.pathname}`;
+    }
+    // Homepage / anything else
+    return 'https://piped.video/';
+  } catch(e) { return rawUrl; }
+}
+
+function preprocessUrl(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    const host = u.hostname.toLowerCase();
+    if (host === 'youtube.com' || host === 'www.youtube.com' || host === 'm.youtube.com' || host === 'youtu.be') {
+      return rewriteYouTubeToPiped(rawUrl);
+    }
+    if (host === 'reddit.com' || host === 'www.reddit.com') return rawUrl.replace(/^https?:\/\/(www\.)?reddit\.com/, 'https://old.reddit.com');
+  } catch(e) {}
+  return rawUrl;
+}
+
+function buildUpstreamHeaders(clientReq, targetUrl, isRetry, noCookies) {
   // For YouTube, always use a stable desktop Chrome UA so the page renders properly
   const isYouTube = targetUrl.hostname.includes('youtube.com') || targetUrl.hostname.includes('youtu.be') || targetUrl.hostname.includes('ytimg.com') || targetUrl.hostname.includes('googlevideo.com') || targetUrl.hostname.includes('yt3.ggpht.com');
   const isDDG = targetUrl.hostname.includes('duckduckgo.com') || targetUrl.hostname.includes('ddg.gg');
@@ -436,14 +473,16 @@ function buildUpstreamHeaders(clientReq, targetUrl, isRetry) {
 
   // Cookie handling: jar cookies take priority; client cookies as fallback (never for YouTube)
   const jarCookies = getCookies(domain);
-  if (isYouTube) {
-    // Only use real consent cookies — do NOT send fake per-session cookies like
-    // VISITOR_INFO1_LIVE or YSC. Fake session cookies make YouTube's bot detection worse.
-    const ytConsent = 'SOCS=CAISNQgDEhJnd3NfMjAyNDExMjMtMF9SQzEaC2VuLVVTLGVuO3VzIiAyMDI0MTEyMy0wX1JDMVgB; CONSENT=PENDING+987';
-    headers['Cookie'] = jarCookies ? jarCookies + '; ' + ytConsent : ytConsent;
-  } else {
-    if (jarCookies) headers['Cookie'] = jarCookies;
-    else if (clientReq.headers['cookie']) headers['Cookie'] = clientReq.headers['cookie'];
+  if (!noCookies) {
+    if (isYouTube) {
+      // Use jar cookies if available (from prior YouTube visits through proxy).
+      // Do NOT send hardcoded/expired SOCS cookies — they cause HTTP 400 rejections.
+      // If no jar cookies, send no Cookie header and let YouTube set fresh ones via redirect.
+      if (jarCookies) headers['Cookie'] = jarCookies;
+    } else {
+      if (jarCookies) headers['Cookie'] = jarCookies;
+      else if (clientReq.headers['cookie']) headers['Cookie'] = clientReq.headers['cookie'];
+    }
   }
 
   if (clientReq.headers['content-type']) headers['Content-Type'] = clientReq.headers['content-type'];
@@ -484,6 +523,16 @@ app.all('/px', async (req, res) => {
   let targetUrl;
   try { targetUrl = new URL(rawUrl); } catch { return res.status(400).send('Invalid URL'); }
 
+  // Rewrite known-blocked sites (YouTube, Reddit) to proxy-friendly equivalents
+  // Only for document requests — leave sub-resources (images, scripts, XHR) alone
+  const resourceTypeEarly = detectResourceType(targetUrl.pathname + targetUrl.search);
+  if (resourceTypeEarly === 'document') {
+    const preprocessed = preprocessUrl(rawUrl);
+    if (preprocessed !== rawUrl) {
+      try { targetUrl = new URL(preprocessed); } catch {}
+    }
+  }
+
   const domain = getDomain(targetUrl.href);
   const resourceType = detectResourceType(targetUrl.pathname + targetUrl.search);
   const cacheKey = targetUrl.href;
@@ -498,13 +547,32 @@ app.all('/px', async (req, res) => {
     }
   }
 
-  const maxRetries = resourceType === 'document' ? 1 : 0;
+  // ── YouTube gateway: serve piped.video in a direct iframe (no server-side proxy) ──
+  // YouTube blocks all requests from Replit's data-center IPs.
+  // piped.video is a 1-to-1 YouTube-compatible frontend with no X-Frame-Options restrictions.
+  // We serve a local gateway page; the user's browser loads piped.video directly.
+  const isYTDomain = targetUrl.hostname.includes('piped.video') ||
+    targetUrl.hostname.includes('youtube.com') || targetUrl.hostname.includes('youtu.be') ||
+    targetUrl.hostname.includes('m.youtube.com');
+  if (resourceType === 'document' && isYTDomain && !targetUrl.hostname.includes('piped.video')) {
+    // YouTube blocks all Replit data-center IPs server-side.
+    // We issue a plain 302 to piped.video — no HTML, no inject script, no proxy in the middle.
+    // The browser/iframe follows the redirect and loads piped.video directly.
+    const pipedUrl = rewriteYouTubeToPiped(rawUrl);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.redirect(302, pipedUrl);
+  }
+
+  const maxRetries = resourceType === 'document' ? 2 : 0;
+  let last400 = false;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt)); // backoff
+      if (attempt > 0) await new Promise(r => setTimeout(r, 600 * attempt)); // backoff
 
-      const upstreamHeaders = buildUpstreamHeaders(req, targetUrl, attempt > 0);
+      // On a retry after a 400, strip all cookies — expired/bad cookies are the most common cause
+      const noCookies = last400 && attempt > 0;
+      const upstreamHeaders = buildUpstreamHeaders(req, targetUrl, attempt > 0, noCookies);
       const timeout = resourceType === 'document' ? randInt(25000, 40000) : randInt(15000, 30000);
 
       const fetchOptions = {
@@ -557,6 +625,12 @@ app.all('/px', async (req, res) => {
       // For 4xx/5xx — never forward these status codes to the browser.
       // A 4xx iframe src causes the browser to show nothing (white/black screen).
       if (response.status >= 400) {
+        // On a 400: retry with cookies stripped (expired/bad cookies are the most common cause).
+        // On a 403: retry once — some sites block on first touch then allow.
+        if ((response.status === 400 || response.status === 403) && attempt < maxRetries) {
+          last400 = true;
+          continue;
+        }
         const msgs = {
           400: 'The site rejected this request. It may require login or actively blocks proxies.',
           401: 'This page requires you to be logged in.',

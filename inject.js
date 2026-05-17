@@ -2961,6 +2961,31 @@
     return null;
   }
 
+  // ── YouTube → piped.video rewrite (bypass proxy for YT) ──
+  function _ytToPiped(rawUrl) {
+    try {
+      var u = new URL(rawUrl);
+      var h = u.hostname.toLowerCase();
+      var isYT = (h === 'youtube.com' || h === 'www.youtube.com' || h === 'm.youtube.com' || h === 'music.youtube.com');
+      var isShort = (h === 'youtu.be');
+      if (!isYT && !isShort) return null;
+      if (isShort) {
+        var id = u.pathname.replace(/^\//, '').split('/')[0];
+        return id ? 'https://piped.video/watch?v=' + id + (u.search || '') : 'https://piped.video/';
+      }
+      var v = u.searchParams.get('v');
+      if (v) return 'https://piped.video/watch?v=' + v;
+      var list = u.searchParams.get('list');
+      if (list) return 'https://piped.video/playlist?list=' + list;
+      var q = u.searchParams.get('search_query') || u.searchParams.get('q');
+      if (q) return 'https://piped.video/results?search_query=' + encodeURIComponent(q);
+      var shorts = u.pathname.match(/^\/shorts\/([^/?#]+)/);
+      if (shorts) return 'https://piped.video/watch?v=' + shorts[1];
+      if (/^\/@|^\/c\/|^\/user\/|^\/channel\//.test(u.pathname)) return 'https://piped.video' + u.pathname + (u.search || '');
+      return 'https://piped.video/';
+    } catch(e) { return null; }
+  }
+
   // ── Tab management ──
   function _createTab(url, title) {
     buildProxyOverlay();
@@ -3044,7 +3069,8 @@
     if (url && url !== 'about:blank') {
       const lb = document.getElementById('fas-pov-loadbar');
       if (lb) lb.style.width = '25%';
-      iframe.src = '/px?url=' + encodeURIComponent(url);
+      const pipedDirect = _ytToPiped(url);
+      iframe.src = pipedDirect ? pipedDirect : '/px?url=' + encodeURIComponent(url);
     } else if (!url) {
       iframe.srcdoc = '<html><body style="background:#0d0e14;display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:sans-serif;color:#555;font-size:14px;margin:0;height:100%;"><div style="font-size:32px;margin-bottom:12px;">\uD83C\uDF10</div><div>Enter a URL or search to start browsing</div></body></html>';
     }
@@ -3124,6 +3150,24 @@
     const url = _resolveProxyUrl(query || '');
     if (!url) return;
     mode = mode || gs('fas_proxy_mode', 'overlay');
+
+    // YouTube → piped.video: load directly (no proxy) so module scripts work
+    const pipedUrl = _ytToPiped(url);
+    if (pipedUrl) {
+      if (mode === 'overlay') {
+        _createTab(url); // _createTab already calls _ytToPiped internally
+      } else if (mode === 'direct') {
+        window.location.href = pipedUrl;
+      } else if (mode === 'newtab') {
+        _openNewTab(pipedUrl);
+      } else if (mode === 'proxy1') {
+        window.location.href = '/proxy1?q=' + encodeURIComponent(pipedUrl);
+      } else if (mode === 'proxy2') {
+        window.location.href = '/proxy2?q=' + encodeURIComponent(pipedUrl);
+      }
+      return;
+    }
+
     const proxyUrl = '/px?url=' + encodeURIComponent(url);
 
     if (mode === 'overlay') {

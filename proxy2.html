@@ -973,6 +973,23 @@
   // ─── NAVIGATION / PROXY ──────────────────────────────────────────────────────
   let currentUrl = '';
 
+  function _ytToPiped(rawUrl) {
+    try {
+      var u = new URL(rawUrl);
+      var h = u.hostname.toLowerCase();
+      var isYT = (h === 'youtube.com' || h === 'www.youtube.com' || h === 'm.youtube.com' || h === 'music.youtube.com');
+      var isShort = (h === 'youtu.be');
+      if (!isYT && !isShort) return null;
+      if (isShort) { var id = u.pathname.replace(/^\//, '').split('/')[0]; return id ? 'https://piped.video/watch?v=' + id : 'https://piped.video/'; }
+      var v = u.searchParams.get('v'); if (v) return 'https://piped.video/watch?v=' + v;
+      var list = u.searchParams.get('list'); if (list) return 'https://piped.video/playlist?list=' + list;
+      var q = u.searchParams.get('search_query') || u.searchParams.get('q'); if (q) return 'https://piped.video/results?search_query=' + encodeURIComponent(q);
+      var shorts = u.pathname.match(/^\/shorts\/([^/?#]+)/); if (shorts) return 'https://piped.video/watch?v=' + shorts[1];
+      if (/^\/@|^\/c\/|^\/user\/|^\/channel\//.test(u.pathname)) return 'https://piped.video' + u.pathname + (u.search || '');
+      return 'https://piped.video/';
+    } catch(e) { return null; }
+  }
+
   function navigate(url) {
     url = toUrl(url);
     // Redirect full DDG SPA → lite HTML version to prevent double-render in iframe
@@ -988,7 +1005,8 @@
     const container = document.getElementById('proxy-frame-container');
     const iframe = document.getElementById('proxy-iframe');
     const display = document.getElementById('proxy-url-display');
-    const pxUrl = '/px?url=' + encodeURIComponent(url);
+    const _piped = _ytToPiped(url);
+    const pxUrl = _piped ? _piped : '/px?url=' + encodeURIComponent(url);
     iframe.src = pxUrl;
     display.value = url;
     container.classList.add('open');
