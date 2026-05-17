@@ -1,0 +1,161 @@
+[FasahatHub] fsSetDoc poll-votes patch applied
+(index):1 <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes">
+inject.js?v=31:3542 [FasahatHub Extensions] ✓ Loaded v4
+(index):1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
+logger.ts:123 [2026-05-17T01:43:21.427Z]  @firebase/firestore: Firestore (12.13.0): Uncaught Error in snapshot listener: FirebaseError: [code=permission-denied]: Missing or insufficient permissions.
+8
+An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.
+/px?url=https%3A%2F%2Fyoutube.com:1 
+ Failed to load resource: the server responded with a status of 400 (Bad Request)
+30
+(index):1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received
+/px?url=https%3A%2F%2Fyoutube.com:1 
+ Failed to load resource: the server responded with a status of 400 (Bad Request)
+4
+(index):1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received
+injected.js:214 A preload for 'https://8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev/px?url=https%3A%2F%2Fduckduckgo.com%2Fcountry.json' is found, but is not used because the request credentials mode does not match. Consider taking a look at crossorigin attribute.
+21
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+/px?url=https%3A%2F%2Ftiktok:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+px:1 Uncaught SyntaxError: Unexpected token '<'
+injected.js:37 Reflect is already polyfilled.
+injected.js:37 [RemoteLoader] loadPage: {"pageName":"NotFoundRedirect","vmokId":"__fake_legacy_page_module__"}
+injected.js:37 .
+/px?url=https%3A%2F%…Fttwid%2Fcheck%2F:1 
+ Failed to load resource: the server responded with a status of 404 (Not Found)
+injected.js:37 
+i
+injected.js:37 getRelatedApps failed InvalidStateError: Failed to execute 'getInstalledRelatedApps' on 'Navigator': getInstalledRelatedApps() is only supported in top-level browsing contexts.
+    at px?url=https%3A%2F%2…17d5190.js:1:828310
+    at Generator.next (<anonymous>)
+    at n (px?url=https%3A%2F%2….5085a15b.js:6:2574)
+    at s (px?url=https%3A%2F%2….5085a15b.js:6:2771)
+    at px?url=https%3A%2F%2….5085a15b.js:6:2830
+    at new Promise (<anonymous>)
+    at px?url=https%3A%2F%2….5085a15b.js:6:2712
+    at y (px?url=https%3A%2F%2…17d5190.js:1:828402)
+    at px?url=https%3A%2F%2…17d5190.js:1:831451
+    at oO (px?url=https%3A%2F%2…489a181.js:2:152996)
+injected.js:214 
+ POST https://8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.de…26tz_name%3DEtc%252FGMT-10%26user_is_login%3Dfalse%26webcast_language%3Den net::ERR_ALPN_NEGOTIATION_FAILED
+injected.js:37 Feature access control initialization error TypeError: Failed to fetch
+    at Object.apply (injected.js:214:39)
+    at window.fetch (px?url=https%3A%2F%2Ftiktok.com:15:227)
+    at h (px?url=https%3A%2F%2…%2Findex.js:4:74622)
+    at window.fetch (px?url=https%3A%2F%2…%2Findex.js:4:74709)
+    at window.fetch (px?url=https%3A%2F%2…test.umd.js:1036:38)
+    at Array.g (px?url=https%3A%2F%2…webmssdk.js:1:22462)
+    at j (px?url=https%3A%2F%2…ebmssdk.js:1:242635)
+    at px?url=https%3A%2F%2…webmssdk.js:1:50772
+    at w (px?url=https%3A%2F%2…webmssdk.js:1:14053)
+    at Generator.<anonymous> (px?url=https%3A%2F%2…webmssdk.js:1:15423)
+injected.js:37 getRelatedApps failed InvalidStateError: Failed to execute 'getInstalledRelatedApps' on 'Navigator': getInstalledRelatedApps() is only supported in top-level browsing contexts.
+    at px?url=https%3A%2F%2…17d5190.js:1:828310
+    at Generator.next (<anonymous>)
+    at n (px?url=https%3A%2F%2….5085a15b.js:6:2574)
+    at s (px?url=https%3A%2F%2….5085a15b.js:6:2771)
+    at px?url=https%3A%2F%2….5085a15b.js:6:2830
+    at new Promise (<anonymous>)
+    at px?url=https%3A%2F%2….5085a15b.js:6:2712
+    at y (px?url=https%3A%2F%2…17d5190.js:1:828402)
+    at px?url=https%3A%2F%2…17d5190.js:1:831451
+    at oO (px?url=https%3A%2F%2…489a181.js:2:152996)
+injected.js:37 [browser check] Chrome, os:  Windows
+injected.js:37 InvalidCharacterError: Failed to execute 'atob' on 'Window': The string to be decoded is not correctly encoded.
+    at i (px?url=https%3A%2F%2…a2ea700.js:1:171615)
+    at I.getLoginContext (px?url=https%3A%2F%2…6a2ea700.js:1:26487)
+    at px?url=https%3A%2F%2…6a2ea700.js:1:29411
+    at y (px?url=https%3A%2F%2…5085a15b.js:5:54222)
+    at v (px?url=https%3A%2F%2…5085a15b.js:5:54157)
+    at s._next (px?url=https%3A%2F%2…5085a15b.js:5:51024)
+    at t.next (px?url=https%3A%2F%2…5085a15b.js:5:42119)
+    at px?url=https%3A%2F%2…5085a15b.js:5:53763
+    at s._next (px?url=https%3A%2F%2…5085a15b.js:5:51024)
+    at t.next (px?url=https%3A%2F%2…5085a15b.js:5:42119)
+injected.js:37 [GSI_LOGGER]: Your client application may not display Google One Tap when FedCM becomes mandatory. Opt-in to FedCM to test that you have the proper cross-origin permission policy set up. Ignore this message if One Tap is displayed after opt-in to FedCM. Learn more: (https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#cross_origin)
+injected.js:37 [GSI_LOGGER]: Your client application uses one of the Google One Tap prompt UI status methods that may stop functioning when FedCM becomes mandatory. Refer to the migration guide to update your code accordingly and opt-in to FedCM to test your changes. Learn more: https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#display_moment and https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#skipped_moment
+injected.js:214 
+ POST https://8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.de…78982338%26upload_type%3D1%26user_is_login%3Dfalse%26webcast_language%3Den net::ERR_ALPN_NEGOTIATION_FAILED
+px?url=https%3A%2F%2Ftiktok.com:1 FedCM was disabled either temporarily based on previous user action or permanently via site settings. Try manage third-party sign-in via the icon to the left of the URL bar or via site settings.
+px?url=https%3A%2F%2…F4960.5085a15b.js:6 
+ Uncaught (in promise) TypeError: Failed to fetch
+    at Object.apply (injected.js:214:39)
+    at window.fetch (px?url=https%3A%2F%2Ftiktok.com:15:227)
+    at h (px?url=https%3A%2F%2…%2Findex.js:4:74622)
+px?url=https%3A%2F%2….0.310%2Findex.js:4 WebSocket connection to 'wss://im-ws.tiktok.com/ws/v2?fpid=32&service=33554513&method=2&aid=1988&dev…0935395853&access_key=783cef8…&device_platform=web' failed: 
+px?url=https%3A%2F%2…F7036.4e3fb56d.js:2 Uncaught (in promise) TypeError: a.init is not a function
+    at t.<anonymous> (px?url=https%3A%2F%2…e3fb56d.js:2:543639)
+    at l (px?url=https%3A%2F%2…e3fb56d.js:2:536740)
+    at Generator.<anonymous> (px?url=https%3A%2F%2…e3fb56d.js:2:538097)
+    at Generator.next (px?url=https%3A%2F%2…e3fb56d.js:2:537133)
+    at px?url=https%3A%2F%2…5085a15b.js:5:64776
+    at new Promise (<anonymous>)
+    at l (px?url=https%3A%2F%2…5085a15b.js:5:64573)
+    at t.value (px?url=https%3A%2F%2…e3fb56d.js:2:543179)
+    at t.value (px?url=https%3A%2F%2…e3fb56d.js:2:543065)
+    at t.<anonymous> (px?url=https%3A%2F%2…e3fb56d.js:2:615713)
+(anonymous)	@	px?url=https%3A%2F%2…F7036.4e3fb56d.js:2
+l	@	px?url=https%3A%2F%2…F7036.4e3fb56d.js:2
+(anonymous)	@	px?url=https%3A%2F%2…F7036.4e3fb56d.js:2
+(anonymous)	@	px?url=https%3A%2F%2…F7036.4e3fb56d.js:2
+(anonymous)	@	px?url=https%3A%2F%2…F4960.5085a15b.js:5
+l	@	px?url=https%3A%2F%2…F4960.5085a15b.js:5
+value	@	px?url=https%3A%2F%2…F7036.4e3fb56d.js:2
+value	@	px?url=https%3A%2F%2…F7036.4e3fb56d.js:2
+(anonymous)	@	px?url=https%3A%2F%2…F7036.4e3fb56d.js:2
+l	@	px?url=https%3A%2F%2…F7036.4e3fb56d.js:2
+(anonymous)	@	px?url=https%3A%2F%2…F7036.4e3fb56d.js:2
+(anonymous)	@	px?url=https%3A%2F%2…F7036.4e3fb56d.js:2
+s	@	px?url=https%3A%2F%2…F4960.5085a15b.js:5
+Promise.then		
+u	@	px?url=https%3A%2F%2…F4960.5085a15b.js:5
+(anonymous)	@	px?url=https%3A%2F%2…F4960.5085a15b.js:5
+l	@	px?url=https%3A%2F%2…F4960.5085a15b.js:5
+value	@	px?url=https%3A%2F%2…F7036.4e3fb56d.js:2
+t	@	px?url=https%3A%2F%2…F2151.46ec6d88.js:1
+P	@	px?url=https%3A%2F%2…F2151.46ec6d88.js:1
+a	@	px?url=https%3A%2F%2…F2151.46ec6d88.js:1
+Promise.then		
+P	@	px?url=https%3A%2F%2…F2151.46ec6d88.js:1
+a	@	px?url=https%3A%2F%2…F2151.46ec6d88.js:1
+(anonymous)	@	px?url=https%3A%2F%2…F2151.46ec6d88.js:1
+(anonymous)	@	px?url=https%3A%2F%2…F2151.46ec6d88.js:1
+init	@	px?url=https%3A%2F%2…F2151.46ec6d88.js:1
+init	@	px?url=https%3A%2F%2…F2151.46ec6d88.js:1
+(anonymous)	@	px?url=https%3A%2F%2…F2151.46ec6d88.js:1
+(anonymous)	@	px?url=https%3A%2F%2…F9256.ffb10c3d.js:1
+oO	@	px?url=https%3A%2F%2…t_dom.a489a181.js:2
+uB	@	px?url=https%3A%2F%2…t_dom.a489a181.js:2
+(anonymous)	@	px?url=https%3A%2F%2…t_dom.a489a181.js:2
+x	@	px?url=https%3A%2F%2…t_dom.a489a181.js:2
+z	@	px?url=https%3A%2F%2…t_dom.a489a181.js:2
+postMessage		
+o	@	px?url=https%3A%2F%2…t_dom.a489a181.js:2
+z	@	px?url=https%3A%2F%2…t_dom.a489a181.js:2
+postMessage		
+o	@	px?url=https%3A%2F%2…t_dom.a489a181.js:2
+M	@	px?url=https%3A%2F%2…t_dom.a489a181.js:2
+t.unstable_scheduleCallback	@	px?url=https%3A%2F%2…t_dom.a489a181.js:2
+uw	@	px?url=https%3A%2F%2…t_dom.a489a181.js:2
+uk	@	px?url=https%3A%2F%2…t_dom.a489a181.js:2
+enqueueSetState	@	px?url=https%3A%2F%2…t_dom.a489a181.js:2
+h.setState	@	px?url=https%3A%2F%2…basic.ecab9167.js:2
+n.safeSetState	@	VM8507 px:2
+(anonymous)	@	VM8507 px:2
+PendingScript		
+HTMLElement.appendChild	@	injectScript.js:1
+i.l	@	px?url=https%3A%2F%2…ntime.1710ad31.js:1
+i.f.j	@	px?url=https%3A%2F%2…ntime.1710ad31.js:1
+(anonymous)	@	px?url=https%3A%2F%2…ntime.1710ad31.js:1
+i.e	@	px?url=https%3A%2F%2…ntime.1710ad31.js:1
+(anonymous)	@	VM8512 px:1
+(anonymous)	@	VM8512 px:1
+n	@	px?url=https%3A%2F%2…F4960.5085a15b.js:6
+s	@	px?url=https%3A%2F%2…F4960.5085a15b.js:6
+(anonymous)	@	px?url=https%3A%2F%2…F4960.5085a15b.js:6
+(anonymous)	@	px?url=https%3A%2F%2…F4960.5085a15b.js:6
+(anonymous)	@	VM8512 px:1
+(anonymous)	@	VM8512 px:1
+n	@	px?url=https%3A%2F%2…F4960.5085a15b.js:6
+s	@	px?url=https%3A%2F%2…F4960.5085a15b.js:6

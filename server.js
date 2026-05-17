@@ -188,10 +188,10 @@ function rewriteHtml(html, base, domain) {
 var P='/px?url=';
 /* Cache of the upstream base URL.  Populated on first read and kept even after
    SPA pushState navigation removes the ?url= param from location.search. */
-var _ubCache=null;
+var _ubCache=${JSON.stringify(String(base))};
 /* Extract the upstream (real) URL from the proxy page's ?url= query param.
-   Falls back to the cached value so SPA navigation doesn't break URL resolution. */
-function _getUpstreamBase(){try{var m=location.search.match(/[?&]url=([^&]+)/);if(m){_ubCache=decodeURIComponent(m[1]);return _ubCache;}if(_ubCache)return _ubCache;}catch(e){}return null;}
+   Falls back to the server-embedded _ubCache so SPA pushState navigation never loses the base. */
+function _getUpstreamBase(){try{var m=location.search.match(/[?&]url=([^&]+)/);if(m){_ubCache=decodeURIComponent(m[1]);return _ubCache;}if(_ubCache)return _ubCache;}catch(e){}return _ubCache||null;}
 /* tp: rewrite URL to proxy path. Uses upstream base for relative/protocol-relative URL resolution. */
 function tp(u){try{if(!u||typeof u!=='string'||u.startsWith(P)||u.startsWith('data:')||u.startsWith('blob:')||u.startsWith('javascript:'))return u;if(u.startsWith('//')){var up=_getUpstreamBase();var proto=up?new URL(up).protocol:'https:';u=proto+u;}var base=_getUpstreamBase()||location.href;var a=new URL(u,base).href;if(a.startsWith('http://')||a.startsWith('https://'))return P+encodeURIComponent(a);}catch(e){}return u;}
 /* XHR — must set arguments[1] explicitly so the browser sees the change */
@@ -210,7 +210,7 @@ document.addEventListener('submit',function(e){var f=e.target;if(!f)return;try{v
    Extract the real upstream URL from the current page's ?url= query param so that e.g.
    pushState('/about') on a proxied duckduckgo.com page becomes /px?url=https://duckduckgo.com/about
    instead of navigating to our server's /about route (which causes SPA double-render). */
-['pushState','replaceState'].forEach(function(fn){var orig=history[fn];history[fn]=function(st,ti,url){if(url!=null){try{var s=String(url);if(!s||s.startsWith('#')||s.startsWith(P))return orig.call(this,st,ti,url);var qm=location.search.match(/[?&]url=([^&]+)/);var base=qm?decodeURIComponent(qm[1]):null;if(base){var abs=new URL(s,base).href;if(abs.startsWith('http://') ||abs.startsWith('https://'))url=P+encodeURIComponent(abs);}else{var abs2=new URL(s,location.href).href;if((abs2.startsWith('http://')||abs2.startsWith('https://'))&&!abs2.startsWith(location.origin+'/'))url=P+encodeURIComponent(abs2);}}catch(e){}}return orig.call(this,st,ti,url);};});
+['pushState','replaceState'].forEach(function(fn){var orig=history[fn];history[fn]=function(st,ti,url){if(url!=null){try{var s=String(url);if(!s||s.startsWith('#')||s.startsWith(P))return orig.call(this,st,ti,url);/* Use location.search first, then fall back to server-embedded _ubCache — never use location.href as that points to our proxy domain */var qm=location.search.match(/[?&]url=([^&]+)/);var base=qm?decodeURIComponent(qm[1]):_ubCache;if(base){_ubCache=base;var abs=new URL(s,base).href;if(abs.startsWith('http://')||abs.startsWith('https://'))url=P+encodeURIComponent(abs);}}catch(e){}}return orig.call(this,st,ti,url);};});
 /* window.open */
 var _wo=window.open;window.open=function(u,n,f){if(typeof u==='string')u=tp(u);return _wo.call(this,u,n,f);};
 /* location.assign / replace */
@@ -240,6 +240,10 @@ try{var _la=Location.prototype.assign;Location.prototype.assign=function(u){retu
 })();
 /* Block service workers — they hijack fetch and break the proxy */
 try{Object.defineProperty(navigator,'serviceWorker',{get:function(){return{register:function(){return Promise.resolve({scope:'/'});},getRegistrations:function(){return Promise.resolve([]);},addEventListener:function(){}};},configurable:true});}catch(e){}
+/* Spoof navigator.getInstalledRelatedApps — only works in top-level context; throws inside iframes */
+try{if(typeof navigator.getInstalledRelatedApps==='undefined'||true){Object.defineProperty(navigator,'getInstalledRelatedApps',{value:function(){return Promise.resolve([]);},configurable:true,writable:true});}}catch(e){}
+/* Suppress noisy console errors from WebSocket/WebRTC that can't be proxied */
+try{var _cErr=console.error.bind(console);console.error=function(){try{var a=arguments[0];if(typeof a==='string'&&(a.indexOf('ERR_ALPN')!==-1||a.indexOf('wss://')!==-1||a.indexOf('getInstalledRelatedApps')!==-1||a.indexOf('FedCM')!==-1))return;}catch(e){}return _cErr.apply(console,arguments);};}catch(e){}
 })();</script>`;
 
   // Remove <base> tags
@@ -402,11 +406,10 @@ function buildUpstreamHeaders(clientReq, targetUrl, isRetry) {
     headers['Referer'] = 'https://www.youtube.com/';
     headers['Origin'] = 'https://www.youtube.com';
     headers['Sec-Fetch-Site'] = 'same-origin';
-    headers['Sec-Fetch-Mode'] = resourceType === 'document' ? 'navigate' : 'no-cors';
-    headers['Sec-Fetch-Dest'] = resourceType === 'document' ? 'document' : (resourceType === 'script' ? 'script' : 'empty');
-    // Inject consent/SOCS cookies so YouTube doesn't redirect to consent.youtube.com
-    const ytConsentCookies = 'SOCS=CAESEwgDEgk0ODE3Nzk3MjkaAmVuIAEaBgiA_LyaBg; CONSENT=YES+cb.20210328-17-p0.en+FX+667; GPS=1; VISITOR_INFO1_LIVE=1; YSC=1';
-    headers['Cookie'] = headers['Cookie'] ? headers['Cookie'] + '; ' + ytConsentCookies : ytConsentCookies;
+    // API/XHR endpoints need cors mode; navigations need navigate
+    const isYtApi = /\/(youtubei|generate_204|log_event|stats|api\/)/.test(targetUrl.pathname);
+    headers['Sec-Fetch-Mode'] = isYtApi ? 'cors' : (resourceType === 'document' ? 'navigate' : 'no-cors');
+    headers['Sec-Fetch-Dest'] = isYtApi ? 'empty' : (resourceType === 'document' ? 'document' : (resourceType === 'script' ? 'script' : 'empty'));
   }
 
   // DuckDuckGo: send proper search engine headers
@@ -417,12 +420,16 @@ function buildUpstreamHeaders(clientReq, targetUrl, isRetry) {
     headers['Sec-Fetch-Mode'] = 'navigate';
   }
 
-  // Forward cookies from jar
+  // Cookie handling: jar cookies take priority; client cookies as fallback (never for YouTube)
   const jarCookies = getCookies(domain);
-  if (jarCookies) headers['Cookie'] = jarCookies;
-
-  // Forward client cookie as fallback
-  if (!jarCookies && clientReq.headers['cookie']) headers['Cookie'] = clientReq.headers['cookie'];
+  if (isYouTube) {
+    // Always ensure consent cookies — merge with jar so neither is lost
+    const ytConsent = 'SOCS=CAESEwgDEgk0ODE3Nzk3MjkaAmVuIAEaBgiA_LyaBg; CONSENT=YES+cb.20210328-17-p0.en+FX+667; GPS=1; VISITOR_INFO1_LIVE=1; YSC=1';
+    headers['Cookie'] = jarCookies ? jarCookies + '; ' + ytConsent : ytConsent;
+  } else {
+    if (jarCookies) headers['Cookie'] = jarCookies;
+    else if (clientReq.headers['cookie']) headers['Cookie'] = clientReq.headers['cookie'];
+  }
 
   if (clientReq.headers['content-type']) headers['Content-Type'] = clientReq.headers['content-type'];
 

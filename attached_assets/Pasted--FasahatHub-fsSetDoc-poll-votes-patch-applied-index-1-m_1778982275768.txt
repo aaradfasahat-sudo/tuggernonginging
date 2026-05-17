@@ -1,0 +1,12 @@
+[FasahatHub] fsSetDoc poll-votes patch applied
+(index):1 <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes">Understand this warning
+inject.js?v=31:3542 [FasahatHub Extensions] ✓ Loaded v4
+(index):1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
+logger.ts:123 [2026-05-17T01:43:21.427Z]  @firebase/firestore: Firestore (12.13.0): Uncaught Error in snapshot listener: FirebaseError: [code=permission-denied]: Missing or insufficient permissions.
+toISOString @ logger.ts:123Understand this error
+injectScript.js:1 An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.
+HTMLElement.appendChild @ injectScript.js:1Understand this warning
+px?url=https%3A%2F%2Fyoutube.com:1  Failed to load resource: the server responded with a status of 400 (Bad Request)Understand this error
+px?url=https%3A%2F%2Fyoutube.com:1 An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.Understand this warning
+30(index):1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was receivedUnderstand this error
+px?url=https%3A%2F%2Fyoutube.com:1  Failed to load resource: the server responded with a status of 400 (Bad Request) ....................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
