@@ -1,0 +1,177 @@
+[FasahatHub Extensions] ✓ Loaded v4
+inject.js?v=30:1040 [FasahatHub] fsSetDoc poll-votes patch applied
+(index):1 <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes">Understand this warning
+4(index):1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was receivedUnderstand this error
+(index):1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
+inject.js?v=30:2960 Unrecognized feature: 'pointer-lock'.
+_createTab @ inject.js?v=30:2960Understand this warning
+ An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.
+HTMLElement.appendChild @ injectScript.js:1Understand this warning
+/px?url=https%3A%2F%2Fyoutube.com:1  Failed to load resource: the server responded with a status of 400 (Bad Request)Understand this error
+/px?url=https%3A%2F%2Fyoutube.com:1 An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.Understand this warning
+41The FetchEvent for "<URL>" resulted in a network error response: the promise was rejected.Understand this warning
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+/px?url=https%3A%2F%2Fyoutube.com:1  Failed to load resource: the server responded with a status of 400 (Bad Request)Understand this error
+5(index):1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was receivedUnderstand this error
+ An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.
+HTMLElement.appendChild @ injectScript.js:1Understand this warning
+px?url=https%3A%2F%2Fduckduckgo.com:1 An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.Understand this warning
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/page_home_ssg_impression?hydrated=false&cached=true&experiment_turbo=false&_=6283301:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+improving.duckduckgo.com/t/page_home_ssg_scroll?hydrated=false&cached=true&experiment_turbo=false&_=7695908:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+webpack-3da34ebf55e3310b.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?5176688&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2Fwebpack-3da34ebf55e3310b.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_fcp?fcp=1704&ttfb=363&path=%2Fpx&cached=true&experiment_turbo=false&_=2546486:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+framework-64870e4997d77dcd.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?9365227&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2Fframework-64870e4997d77dcd.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+main-f76bad98d42d3dc3.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+_app-bee7276c8ec532e9.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?1250837&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2Fmain-f76bad98d42d3dc3.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?6488633&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2Fpages%2F_app-bee7276c8ec532e9.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+9812-bb4187d7c5c399fd.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+9587-7e45286cb59e48ef.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?2557690&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F9812-bb4187d7c5c399fd.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+improving.duckduckgo.com/t/static_err_global?4469328&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F9587-7e45286cb59e48ef.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+5276-708c6032c277be93.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?2220680&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F5276-708c6032c277be93.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+7864-96f587958cbfeaba.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?953184&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F7864-96f587958cbfeaba.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+9583-30bba60a38a31d13.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?322209&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F9583-30bba60a38a31d13.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+7978-d8fe9df1f15592f1.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?2686413&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F7978-d8fe9df1f15592f1.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+4221-b8ca50fdd67f4669.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?1538881&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F4221-b8ca50fdd67f4669.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+6186-80964030dcd76af7.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?2632059&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F6186-80964030dcd76af7.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+7408-e45cb418cef6fc2b.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?897365&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F7408-e45cb418cef6fc2b.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+8274-6c7512a885cf62d9.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?9276475&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F8274-6c7512a885cf62d9.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+2233-476e9e5996f56bfb.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?2466985&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F2233-476e9e5996f56bfb.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+5750-bbcc4fefc93993a1.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?8660644&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F5750-bbcc4fefc93993a1.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+1351-09e0633f6c391c29.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+6034-d52bffcc5572c1d5.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?9232497&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F1351-09e0633f6c391c29.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?4988965&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F6034-d52bffcc5572c1d5.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+6611-9795e823ce7cec25.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?2348306&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F6611-9795e823ce7cec25.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+6991-af3374455e21d0c0.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?2103969&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F6991-af3374455e21d0c0.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+5599-7b9af11505adbfd9.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?4753231&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F5599-7b9af11505adbfd9.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+4090-edf66cc808f05ee6.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?994334&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F4090-edf66cc808f05ee6.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+4280-3719063d692c2c05.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?395244&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F4280-3719063d692c2c05.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+9613-a42f066e9bc5da7c.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?1260885&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F9613-a42f066e9bc5da7c.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+5991-725542a699ab309f.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?3594324&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F5991-725542a699ab309f.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+3033-7fa2a6f9f9959a88.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?4231314&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F3033-7fa2a6f9f9959a88.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+8266-c89f040c34120d34.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+4350-ac15e97785c11967.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?4404043&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F8266-c89f040c34120d34.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?7900714&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F4350-ac15e97785c11967.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+9303-d79a8659dc40e8e7.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+improving.duckduckgo.com/t/static_err_global?4040605&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F9303-d79a8659dc40e8e7.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+4414-08e06786f41db5b7.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?2919487&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F4414-08e06786f41db5b7.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+5392-94a2b37cee2c4530.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?5563045&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F5392-94a2b37cee2c4530.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+6013-dd81430aad59e43c.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?871852&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F6013-dd81430aad59e43c.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+7458-c5fc394c3e64d905.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+3696-a64967ce43421189.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?296006&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F7458-c5fc394c3e64d905.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?268897&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2F3696-a64967ce43421189.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+desktop-f2cd048f8a8dc452.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+_buildManifest.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?4953710&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2Fchunks%2Fpages%2F%255Blocale%255D%2Fhome%2Fdesktop-f2cd048f8a8dc452.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?3583369&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2FUtk9z9NMV3RyrmM5XaIvx%2F_buildManifest.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+_ssgManifest.js:1 Uncaught SyntaxError: Unexpected token '<'Understand this error
+sw.js:15  Uncaught (in promise) TypeError: Failed to fetch
+    at sw.js:15:21Understand this error
+improving.duckduckgo.com/t/static_err_global?5415796&msg=Uncaught%20SyntaxError%3A%20Unexpected%20token%20%27%3C%27&url=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2F_next%2Fstatic%2FUtk9z9NMV3RyrmM5XaIvx%2F_ssgManifest.js&line=1&col=1&href=https%3A%2F%2F8e968bf5-fa98-4e2b-af76-40ca9eca8cee-00-3ig8mx2h4gvt.worf.replit.dev%2Fpx%3Furl%3Dhttps%253A%252F%252Fduckduckgo.com&pathname=%2Fpx&stack=SyntaxError%3A%20Unexpected%20token%20%27%3C%27:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+6The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.

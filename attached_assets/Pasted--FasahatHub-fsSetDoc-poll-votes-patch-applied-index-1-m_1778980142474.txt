@@ -1,0 +1,413 @@
+[FasahatHub] fsSetDoc poll-votes patch applied
+(index):1 <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes">Understand this warning
+inject.js?v=30:3542 [FasahatHub Extensions] ✓ Loaded v4
+(index):1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
+logger.ts:123 [2026-05-17T01:06:58.090Z]  @firebase/firestore: Firestore (12.13.0): Uncaught Error in snapshot listener: FirebaseError: [code=permission-denied]: Missing or insufficient permissions.
+toISOString @ logger.ts:123
+(anonymous) @ log.ts:25
+ERROR @ log.ts:66
+this @ async_observer.ts:54
+onError @ event_manager.ts:485
+__PRIVATE_eventManagerOnWatchError @ event_manager.ts:367
+__PRIVATE_syncEngineImpl @ sync_engine_impl.ts:944
+(anonymous) @ sync_engine_impl.ts:735
+Promise.then
+__PRIVATE_syncEngineRejectListen @ sync_engine_impl.ts:734
+__PRIVATE_handleTargetError @ remote_store.ts:867
+set @ remote_store.ts:624
+(anonymous) @ persistent_stream.ts:683
+(anonymous) @ persistent_stream.ts:553
+(anonymous) @ persistent_stream.ts:598
+(anonymous) @ async_queue_impl.ts:138
+error @ async_queue_impl.ts:192
+Promise.then
+Tc @ async_queue_impl.ts:189
+enqueue @ async_queue_impl.ts:136
+enqueueAndForget @ async_queue_impl.ts:97
+fn @ persistent_stream.ts:596
+(anonymous) @ persistent_stream.ts:540
+__ @ webchannel_connection.ts:61
+(anonymous) @ webchannel_connection.ts:447
+(anonymous) @ webchannel_connection.ts:75
+d @ webchannel_blob_es2018.js:24
+D @ webchannel_blob_es2018.js:22
+(anonymous) @ webchannel_blob_es2018.js:83
+c @ webchannel_blob_es2018.js:29
+(anonymous) @ webchannel_blob_es2018.js:31
+(anonymous) @ webchannel_blob_es2018.js:30
+d @ webchannel_blob_es2018.js:24
+D @ webchannel_blob_es2018.js:22
+Qc @ webchannel_blob_es2018.js:59
+(anonymous) @ webchannel_blob_es2018.js:60
+(anonymous) @ webchannel_blob_es2018.js:60
+Gc @ webchannel_blob_es2018.js:54
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:52
+Promise.then
+Error @ webchannel_blob_es2018.js:50
+(anonymous) @ webchannel_blob_es2018.js:57
+Eb @ webchannel_blob_es2018.js:25
+$c @ webchannel_blob_es2018.js:74
+(anonymous) @ webchannel_blob_es2018.js:72
+sa @ webchannel_blob_es2018.js:13
+Promise.then
+(anonymous) @ webchannel_blob_es2018.js:13
+ac @ webchannel_blob_es2018.js:72
+(anonymous) @ webchannel_blob_es2018.js:38
+(anonymous) @ webchannel_blob_es2018.js:31
+(anonymous) @ webchannel_blob_es2018.js:30
+d @ webchannel_blob_es2018.js:24
+D @ webchannel_blob_es2018.js:22
+Qc @ webchannel_blob_es2018.js:59
+(anonymous) @ webchannel_blob_es2018.js:60
+(anonymous) @ webchannel_blob_es2018.js:60
+Gc @ webchannel_blob_es2018.js:54
+(anonymous) @ webchannel_blob_es2018.js:53
+Promise.then
+bind @ webchannel_blob_es2018.js:53
+(anonymous) @ webchannel_blob_es2018.js:52
+Promise.then
+Error @ webchannel_blob_es2018.js:50
+(anonymous) @ webchannel_blob_es2018.js:57
+Eb @ webchannel_blob_es2018.js:29
+a @ webchannel_blob_es2018.js:28
+(anonymous) @ webchannel_blob_es2018.js:69
+sa @ webchannel_blob_es2018.js:13
+Promise.then
+(anonymous) @ webchannel_blob_es2018.js:13
+bc @ webchannel_blob_es2018.js:70
+(anonymous) @ webchannel_blob_es2018.js:68
+(anonymous) @ webchannel_blob_es2018.js:80
+(anonymous) @ webchannel_connection.ts:317
+send @ stream_bridge.ts:94
+K_ @ persistent_stream.ts:329
+Z_ @ persistent_stream.ts:700
+targetId @ remote_store.ts:503
+(anonymous) @ remote_store.ts:576
+__PRIVATE_onWatchStreamOpen @ remote_store.ts:572
+(anonymous) @ persistent_stream.ts:532
+(anonymous) @ persistent_stream.ts:598
+(anonymous) @ async_queue_impl.ts:138
+error @ async_queue_impl.ts:192
+Promise.then
+Tc @ async_queue_impl.ts:189
+enqueue @ async_queue_impl.ts:136
+enqueueAndForget @ async_queue_impl.ts:97
+fn @ persistent_stream.ts:596
+(anonymous) @ persistent_stream.ts:517
+(anonymous) @ webchannel_connection.ts:51
+(anonymous) @ webchannel_connection.ts:465
+setTimeout
+T_ @ webchannel_connection.ts:465
+appCheckToken @ persistent_stream.ts:666
+this @ persistent_stream.ts:504
+(anonymous) @ persistent_stream.ts:481
+Promise.then
+__PRIVATE_closeCount @ persistent_stream.ts:479
+this @ persistent_stream.ts:273
+__PRIVATE_startWatchStream @ remote_store.ts:544
+__PRIVATE_remoteStoreListen @ remote_store.ts:408
+__PRIVATE_shouldInitializeView @ sync_engine_impl.ts:377
+await in __PRIVATE_shouldInitializeView
+__PRIVATE_ensureWatchCallbacks @ sync_engine_impl.ts:316
+__PRIVATE_eventManagerListen @ event_manager.ts:176
+__PRIVATE_executeQueryViaSnapshotListener @ firestore_client.ts:526
+(anonymous) @ firestore_client.ts:529
+await in (anonymous)
+(anonymous) @ async_queue_impl.ts:138
+error @ async_queue_impl.ts:192
+Promise.then
+Tc @ async_queue_impl.ts:189
+enqueue @ async_queue_impl.ts:136
+enqueueAndForget @ async_queue_impl.ts:97
+__PRIVATE_firestoreClientGetDocumentsViaSnapshotListener @ firestore_client.ts:777
+__PRIVATE_cast @ reference_impl.ts:209
+_rp @ index-Be3LJ3MS.js:367
+setTimeout
+_rp @ index-Be3LJ3MS.js:367
+(anonymous) @ index-Be3LJ3MS.js:367
+ms @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Kt @ index-Be3LJ3MS.js:49
+sp @ index-Be3LJ3MS.js:49
+Ap @ index-Be3LJ3MS.js:49
+(anonymous) @ index-Be3LJ3MS.js:49
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+n.unstable_scheduleCallback @ index-Be3LJ3MS.js:26
+Ep @ index-Be3LJ3MS.js:49
+Up @ index-Be3LJ3MS.js:49
+(anonymous) @ index-Be3LJ3MS.js:49Understand this error
+m.media-amazon.com/images/M/MV5BMTY2OTc4NTU1OF5BMl5BanBnXkFtZTcwMTg0MzI1MQ@@._V1_FMjpg_UX1000_.jpg:1  GET https://m.media-amazon.com/images/M/MV5BMTY2OTc4NTU1OF5BMl5BanBnXkFtZTcwMTg0MzI1MQ@@._V1_FMjpg_UX1000_.jpg 404 (Not Found)
+Image
+Ne @ index-Be3LJ3MS.js:50
+ut @ index-Be3LJ3MS.js:50
+p1 @ index-Be3LJ3MS.js:49
+Wo @ index-Be3LJ3MS.js:49
+bp @ index-Be3LJ3MS.js:49
+_1 @ index-Be3LJ3MS.js:49
+M1 @ index-Be3LJ3MS.js:49
+hp @ index-Be3LJ3MS.js:49
+Dp @ index-Be3LJ3MS.js:49
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+n.unstable_scheduleCallback @ index-Be3LJ3MS.js:26
+Ep @ index-Be3LJ3MS.js:49
+Up @ index-Be3LJ3MS.js:49
+(anonymous) @ index-Be3LJ3MS.js:49Understand this error
+MV5BMjA4NDkwNzktNjJkYi00ODNhLWFhYzQtYzk5NjU4MDM0OWZmXkEyXkFqcGc@._V1_.jpg:1  GET https://m.media-amazon.com/images/M/MV5BMjA4NDkwNzktNjJkYi00ODNhLWFhYzQtYzk5NjU4MDM0OWZmXkEyXkFqcGc@._V1_.jpg 404 (Not Found)
+Image
+Ne @ index-Be3LJ3MS.js:50
+ut @ index-Be3LJ3MS.js:50
+p1 @ index-Be3LJ3MS.js:49
+Wo @ index-Be3LJ3MS.js:49
+bp @ index-Be3LJ3MS.js:49
+_1 @ index-Be3LJ3MS.js:49
+M1 @ index-Be3LJ3MS.js:49
+hp @ index-Be3LJ3MS.js:49
+Dp @ index-Be3LJ3MS.js:49
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+ne @ index-Be3LJ3MS.js:26
+postMessage
+le @ index-Be3LJ3MS.js:26
+n.unstable_scheduleCallback @ index-Be3LJ3MS.js:26
+Ep @ index-Be3LJ3MS.js:49
+Up @ index-Be3LJ3MS.js:49
+(anonymous) @ index-Be3LJ3MS.js:49Understand this error
+MV5BNjk0ZjVjMTktZDk1Zi00YmNmLThhYzUtMzFiYzE2NWNjNzI5XkEyXkFqcGc@._V1_FMjpg_UX1000_.jpg:1  GET https://m.media-amazon.com/images/M/MV5BNjk0ZjVjMTktZDk1Zi00YmNmLThhYzUtMzFiYzE2NWNjNzI5XkEyXkFqcGc@._V1_FMjpg_UX1000_.jpg 404 (Not Found)
