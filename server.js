@@ -186,9 +186,12 @@ function rewriteHtml(html, base, domain) {
   // Inject proxy script (inline)
   const injectScript = `<script>(function(){
 var P='/px?url=';
+/* Cache of the upstream base URL.  Populated on first read and kept even after
+   SPA pushState navigation removes the ?url= param from location.search. */
+var _ubCache=null;
 /* Extract the upstream (real) URL from the proxy page's ?url= query param.
-   Re-read on every call so SPA pushState navigation is handled correctly. */
-function _getUpstreamBase(){try{var m=location.search.match(/[?&]url=([^&]+)/);if(m)return decodeURIComponent(m[1]);}catch(e){}return null;}
+   Falls back to the cached value so SPA navigation doesn't break URL resolution. */
+function _getUpstreamBase(){try{var m=location.search.match(/[?&]url=([^&]+)/);if(m){_ubCache=decodeURIComponent(m[1]);return _ubCache;}if(_ubCache)return _ubCache;}catch(e){}return null;}
 /* tp: rewrite URL to proxy path. Uses upstream base for relative/protocol-relative URL resolution. */
 function tp(u){try{if(!u||typeof u!=='string'||u.startsWith(P)||u.startsWith('data:')||u.startsWith('blob:')||u.startsWith('javascript:'))return u;if(u.startsWith('//')){var up=_getUpstreamBase();var proto=up?new URL(up).protocol:'https:';u=proto+u;}var base=_getUpstreamBase()||location.href;var a=new URL(u,base).href;if(a.startsWith('http://')||a.startsWith('https://'))return P+encodeURIComponent(a);}catch(e){}return u;}
 /* XHR — must set arguments[1] explicitly so the browser sees the change */

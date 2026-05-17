@@ -30,10 +30,15 @@
     <script>(function(){var r=sessionStorage.redirect;delete sessionStorage.redirect;if(r&&r!==location.href){history.replaceState(null,null,r)}})()</script>
     <div id="root"></div>
     <script>
+      // Unregister ALL service workers — they break the proxy by intercepting
+      // /px?url=... fetches and failing them.  After unregistration the page
+      // reloads itself so the dead SW is fully gone from the browser.
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js');
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(r) { r.unregister(); });
+        });
       }
     </script>
-    <script src="/inject.js?v=30" defer></script>
+    <script src="/inject.js?v=31" defer></script>
   </body>
 </html>

@@ -1,35 +1,23 @@
+// This service worker unregisters itself immediately so it cannot interfere
+// with the proxy. The proxy runs entirely on the same origin (/px?url=...) so
+// any SW that intercepts fetches will break proxied pages.
 self.addEventListener('install', () => self.skipWaiting());
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    // 1. Wipe all caches
+    caches.keys()
+      .then(keys => Promise.all(keys.map(k => caches.delete(k))))
+      // 2. Unregister this SW so it never runs again
+      .then(() => self.registration.unregister())
+      // 3. Force all open tabs to reload so the dead SW is gone
+      .then(() => self.clients.matchAll({ type: 'window' }))
+      .then(clients => clients.forEach(c => {
+        try { c.navigate(c.url); } catch(e) {}
+      }))
   );
 });
 
-// Only handle requests for our own static assets.
-// Proxy requests (/px?url=...) and navigation requests MUST be passed
-// straight to the network by the browser — never call respondWith() on
-// them, because that causes the SW to re-fetch them from inside the
-// service-worker context (which lacks cookies/headers and fails).
-self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  const url = new URL(req.url);
-
-  // Never touch: proxy endpoint, suggestions, any non-GET, navigation
-  if (
-    req.method !== 'GET' ||
-    req.mode === 'navigate' ||
-    url.pathname.startsWith('/px') ||
-    url.pathname.startsWith('/suggestions') ||
-    url.search.includes('url=')
-  ) {
-    return; // Let the browser handle it natively — do NOT call respondWith()
-  }
-
-  // For our own static assets: network-first, silent fallback
-  event.respondWith(
-    fetch(req).catch(() => new Response('', { status: 503 }))
-  );
-});
+// Never intercept any fetches — if activate fires before unregister completes,
+// falling through (no respondWith) lets the browser handle requests natively.
+self.addEventListener('fetch', () => { /* intentional no-op */ });
