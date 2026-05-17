@@ -3082,8 +3082,8 @@
     const proxyUrl = '/px?url=' + encodeURIComponent(url);
     if (mode === 'direct') { window.location.href = proxyUrl; }
     else if (mode === 'newtab') { window.open(proxyUrl, '_blank'); }
-    else if (mode === 'proxy1') { window.open('/proxy1', '_blank'); }
-    else if (mode === 'proxy2') { window.open('/proxy2', '_blank'); }
+    else if (mode === 'proxy1') { window.open('/proxy1?q=' + encodeURIComponent(url), '_blank'); }
+    else if (mode === 'proxy2') { window.open('/proxy2?q=' + encodeURIComponent(url), '_blank'); }
   }
 
   /* =========================================================

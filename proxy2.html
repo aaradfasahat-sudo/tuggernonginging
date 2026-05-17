@@ -985,6 +985,23 @@
     iframe.src = pxUrl;
     display.value = url;
     container.classList.add('open');
+    // Update URL display whenever the iframe navigates to a new proxied page
+    if (!iframe._urlBarBound) {
+      iframe._urlBarBound = true;
+      iframe.addEventListener('load', function() {
+        try {
+          const src = iframe.src || '';
+          if (!src || src === 'about:blank') return;
+          const m = src.match(/[?&]url=([^&]+)/);
+          if (m) {
+            const decoded = decodeURIComponent(m[1]);
+            currentUrl = decoded;
+            const disp = document.getElementById('proxy-url-display');
+            if (disp && document.activeElement !== disp) disp.value = decoded;
+          }
+        } catch(e) {}
+      });
+    }
   }
 
   function openBlank(url) {
@@ -1117,7 +1134,11 @@
 
   document.getElementById('proxy-reload-btn').addEventListener('click', () => {
     const iframe = document.getElementById('proxy-iframe');
-    iframe.src = iframe.src;
+    if (iframe.src && iframe.src !== 'about:blank') {
+      const src = iframe.src;
+      iframe.src = 'about:blank';
+      requestAnimationFrame(() => { iframe.src = src; });
+    }
   });
 
   document.getElementById('proxy-back-btn').addEventListener('click', () => {

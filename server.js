@@ -186,16 +186,19 @@ function rewriteHtml(html, base, domain) {
   // Inject proxy script (inline)
   const injectScript = `<script>(function(){
 var P='/px?url=';
-/* tp: rewrite absolute http/https URL to proxy path. Already-proxied & non-http pass through unchanged. */
-function tp(u){try{if(!u||typeof u!=='string'||u.startsWith(P)||u.startsWith('data:')||u.startsWith('blob:'))return u;var a=new URL(u,location.href).href;if(a.startsWith('http://') ||a.startsWith('https://'))return P+encodeURIComponent(a);}catch(e){}return u;}
+/* Extract the upstream (real) URL from the proxy page's ?url= query param.
+   Re-read on every call so SPA pushState navigation is handled correctly. */
+function _getUpstreamBase(){try{var m=location.search.match(/[?&]url=([^&]+)/);if(m)return decodeURIComponent(m[1]);}catch(e){}return null;}
+/* tp: rewrite URL to proxy path. Uses upstream base for relative/protocol-relative URL resolution. */
+function tp(u){try{if(!u||typeof u!=='string'||u.startsWith(P)||u.startsWith('data:')||u.startsWith('blob:')||u.startsWith('javascript:'))return u;if(u.startsWith('//')){var up=_getUpstreamBase();var proto=up?new URL(up).protocol:'https:';u=proto+u;}var base=_getUpstreamBase()||location.href;var a=new URL(u,base).href;if(a.startsWith('http://')||a.startsWith('https://'))return P+encodeURIComponent(a);}catch(e){}return u;}
 /* XHR — must set arguments[1] explicitly so the browser sees the change */
 var _xo=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){try{arguments[1]=tp(String(u));}catch(e){}return _xo.apply(this,arguments);};
 /* fetch — only handle string input; do NOT reconstruct Request objects (body is a once-read stream) */
 var _fe=window.fetch;window.fetch=function(i,o){try{if(typeof i==='string')i=tp(i);}catch(e){}return _fe.call(this,i,o);};
-/* Anchor clicks */
-document.addEventListener('click',function(e){var a=e.target.closest('a[href]');if(!a)return;var h=a.getAttribute('href');if(!h||h.startsWith('#')||h.startsWith('javascript:'))return;try{var ab=new URL(h,location.href).href;if((ab.startsWith('http://')||ab.startsWith('https://'))&&ab.indexOf(P)===-1){e.preventDefault();location.href=P+encodeURIComponent(ab);}}catch(x){}},true);
-/* Form submit */
-document.addEventListener('submit',function(e){var f=e.target;if(!f)return;try{var fa=new URL(f.action||'',location.href).href;if(!fa.startsWith('http')||fa.indexOf(P)!==-1)return;e.preventDefault();var m=(f.method||'GET').toUpperCase(),d=new URLSearchParams(new FormData(f)).toString(),sep=fa.indexOf('?')>=0?'&':'?';if(m==='GET'){location.href=P+encodeURIComponent(fa+(d?sep+d:''));}else{location.href=P+encodeURIComponent(fa)+(d?'&_body='+encodeURIComponent(d):'');}}catch(x){}},true);
+/* Anchor clicks — resolve against upstream base so relative paths go to the real site */
+document.addEventListener('click',function(e){var a=e.target.closest('a[href]');if(!a)return;var h=a.getAttribute('href');if(!h||h.startsWith('#')||h.startsWith('javascript:')||h.startsWith('mailto:')||h.startsWith('tel:'))return;try{var base=_getUpstreamBase()||location.href;if(h.startsWith('//')){h=(new URL(base)).protocol+h;}var ab=new URL(h,base).href;if((ab.startsWith('http://')||ab.startsWith('https://'))&&ab.indexOf(P)===-1){e.preventDefault();location.href=P+encodeURIComponent(ab);}}catch(x){}},true);
+/* Form submit — resolve action against upstream base */
+document.addEventListener('submit',function(e){var f=e.target;if(!f)return;try{var fbase=_getUpstreamBase()||location.href;var fa=new URL(f.action||'',fbase).href;if(!fa.startsWith('http')||fa.indexOf(P)!==-1)return;e.preventDefault();var m=(f.method||'GET').toUpperCase(),d=new URLSearchParams(new FormData(f)).toString(),sep=fa.indexOf('?')>=0?'&':'?';if(m==='GET'){location.href=P+encodeURIComponent(fa+(d?sep+d:''));}else{location.href=P+encodeURIComponent(fa)+(d?'&_body='+encodeURIComponent(d):'');}}catch(x){}},true);
 /* pushState / replaceState — resolve relative URLs against the UPSTREAM origin, not our proxy server.
    Extract the real upstream URL from the current page's ?url= query param so that e.g.
    pushState('/about') on a proxied duckduckgo.com page becomes /px?url=https://duckduckgo.com/about
@@ -266,13 +269,28 @@ try{Object.defineProperty(navigator,'serviceWorker',{get:function(){return{regis
 
   for (const [rx, groupIdx] of attrRewrites) {
     html = html.replace(rx, (m, before, q, url, q2) => {
-      if (!url || url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('javascript:') || url.startsWith('#')) return m;
+      if (!url || url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('javascript:') || url.startsWith('#') || url.startsWith('mailto:') || url.startsWith('tel:')) return m;
+      // Protocol-relative URLs → treat as https
+      if (url.startsWith('//')) {
+        const abs = 'https:' + url;
+        if (rx.toString().includes('srcset')) return m.replace(url, toProxyUrl(abs, base));
+        return m.slice(0, m.indexOf(url)) + toProxyUrl(abs, base) + q2;
+      }
       if (url.startsWith('http://') || url.startsWith('https://')) {
         if (rx.toString().includes('srcset')) {
           return m.replace(url, toProxyUrl(url, base));
         }
-        const tagName = m.slice(1).split(/\s/)[0].toLowerCase();
         return m.slice(0, m.indexOf(url)) + toProxyUrl(url, base) + q2;
+      }
+      // Relative URLs — resolve against base and proxy
+      if (!url.startsWith('/px?')) {
+        try {
+          const abs = new URL(url, base).href;
+          if (abs.startsWith('http://') || abs.startsWith('https://')) {
+            if (rx.toString().includes('srcset')) return m.replace(url, toProxyUrl(abs, base));
+            return m.slice(0, m.indexOf(url)) + toProxyUrl(abs, base) + q2;
+          }
+        } catch {}
       }
       return m;
     });
@@ -297,6 +315,7 @@ try{Object.defineProperty(navigator,'serviceWorker',{get:function(){return{regis
 function rewriteCss(css, base) {
   return css.replace(/url\((['"]?)([^'")\s]+)\1\)/gi, (m, q, url) => {
     if (url.startsWith('data:') || url.startsWith('blob:')) return m;
+    if (url.startsWith('//')) url = 'https:' + url;
     return 'url(' + q + toProxyUrl(url, base) + q + ')';
   });
 }
