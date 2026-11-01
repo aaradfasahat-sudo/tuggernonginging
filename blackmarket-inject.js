@@ -146,7 +146,7 @@
             if ((c.tagName==='BUTTON'||c.tagName==='A') && c.textContent.trim().toLowerCase()==='home') {
               var b = document.createElement('button');
               b.id = 'fas-bm-nav-btn';
-              b.innerHTML = '<span style="font-size:13px;">\uD83C\uDFF4</span> Black Market';
+              b.innerHTML = '<span style="font-size:13px;">\uD83C\uDF81</span> Rewards';
               b.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;background:linear-gradient(135deg,rgba(255,215,0,.15),rgba(255,140,0,.1));border:1.5px solid rgba(255,215,0,.35);color:rgba(255,215,0,.9);font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;transition:all .18s;white-space:nowrap;font-family:inherit;box-shadow:0 0 12px rgba(255,215,0,.08);cursor:pointer;';
               b.onmouseenter = function(){ this.style.background='linear-gradient(135deg,rgba(255,215,0,.25),rgba(255,140,0,.18))';this.style.borderColor='rgba(255,215,0,.6)';this.style.boxShadow='0 0 18px rgba(255,215,0,.18)'; };
               b.onmouseleave = function(){ this.style.background='linear-gradient(135deg,rgba(255,215,0,.15),rgba(255,140,0,.1))';this.style.borderColor='rgba(255,215,0,.35)';this.style.boxShadow='0 0 12px rgba(255,215,0,.08)'; };

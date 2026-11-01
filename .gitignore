@@ -7,3 +7,17 @@ zipFile.zip
 .env.*
 .DS_Store
 Thumbs.db
+fix_*.js
+check_*.js
+find_*.js
+*.ps1
+final_check.js
+remove_waves_l.js
+server_out.txt
+server_err.txt
+stdout.txt
+stderr.txt
+serviceAccountKey.json
+.local/
+dump-*.js
+fix-user-names.js

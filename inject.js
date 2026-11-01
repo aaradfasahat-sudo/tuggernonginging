@@ -1,8 +1,8 @@
-// FasahatHub Extensions v1.0
+// Galaxy Annihilating CHS Ballistic Missile Extensions v7
 // Adds: Search w/ Filters, Continue Watching, Theme Colors (in Settings),
 //       Activity Feed (from DM contacts), Watch History, Profile navigation,
 //       Feature Suggestions (Admin)
-/* ── Standalone injection (runs BEFORE the main IIFE so even if IIFE fails) ── */
+/* â”€â”€ Standalone injection (runs BEFORE the main IIFE so even if IIFE fails) â”€â”€ */
 // Removed: moved into inject.js watchdog below (1500ms, safer for React SPA)
 
 (function () {
@@ -11,11 +11,111 @@
   if (window.__fasExtV4Loaded) return;
   window.__fasExtV4Loaded = true;
 
+  // â”€â”€ CRASH DIAGNOSTICS â”€â”€
+  // Capture errors to localStorage so we can see them even after the page goes black.
+  window.addEventListener('error', function(e) {
+    try { localStorage.setItem('__fas_last_error', JSON.stringify({msg: e.message, file: e.filename, line: e.lineno, col: e.colno, stack: (e.error && e.error.stack) || '', time: Date.now()})); } catch(ee) {}
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    try {
+      var reason = e.reason || {};
+      var msg = typeof reason === 'object' ? (reason.message || reason.stack || String(reason)) : String(reason);
+      localStorage.setItem('__fas_last_error', JSON.stringify({msg: msg, stack: reason.stack || '', time: Date.now(), unhandled: true}));
+    } catch(ee) {}
+  });
+
+  // â”€â”€ Default zoom 76% â”€â”€ (disabled â€” caused bottom gap)
+
+  // â”€â”€ PATCH Firestore SDK globals â”€â”€
+  // The React bundle runs BEFORE inject.js, so globals already exist.
+  // Wrap them inline (no getter/setter) before React can use them again.
+  // Each wrapper has a try/catch that falls back to the original on error.
+  (function() {
+    // Poll until Firebase globals are set by the module (defer runs before module)
+    function tryWrapAll() {
+      var wrapped = false;
+      // fsGetDocs (collection queries) - patch with displayName/photoURL
+      if (!window.__fasWrap_fsGetDocs && typeof window.fsGetDocs === 'function') {
+        var _origGD = window.fsGetDocs;
+        window.fsGetDocs = async function() {
+          try { return _patchPlayersSnapshot(await _origGD.apply(this, arguments)); }
+          catch(e) { return _origGD.apply(this, arguments); }
+        };
+        window.__fasWrap_fsGetDocs = true;
+        wrapped = true;
+      }
+      // fsGetDoc (single-doc reads) - patch single doc
+      if (!window.__fasWrap_fsGetDoc && typeof window.fsGetDoc === 'function') {
+        var _origGet = window.fsGetDoc;
+        window.fsGetDoc = async function() {
+          try { return _patchSingleDoc(await _origGet.apply(this, arguments)); }
+          catch(e) { return _origGet.apply(this, arguments); }
+        };
+        window.__fasWrap_fsGetDoc = true;
+        wrapped = true;
+      }
+      // fsOnSnapshot (realtime listeners) - patch snapshot in callback
+      if (!window.__fasWrap_fsOnSnap && typeof window.fsOnSnapshot === 'function') {
+      var _origOnSnap = window.fsOnSnapshot;
+      window.fsOnSnapshot = function(ref, callbackOrOptions) {
+        try {
+          if (typeof callbackOrOptions !== 'function') {
+            return _origOnSnap.apply(this, arguments);
+          }
+          var wrappedCb = function(snap) {
+            try {
+              // Capture conversation list for unread-badge tracking
+              try {
+                if (ref && ref.path === 'conversations' && snap && snap.forEach) {
+                  var _cu = (window.__FIREBASE_USER__ || {}).uid || '';
+                  var _list = [];
+                  snap.forEach(function(doc) {
+                    var d = (doc.data && doc.data()) || {};
+                    var parts = d.participants || [];
+                    var isGrp = parts.length > 2 || d.isGroup === true || (d.groupName != null && d.groupName !== '');
+                    var other = parts.filter(function(p){ return p !== _cu; })[0] || '';
+                    var nm = isGrp ? (d.groupName || ('Group (' + parts.length + ')')) : (d['name_' + other] || other || 'Unknown');
+                    var lt = d.lastTime;
+                    if (lt && lt.toDate) lt = lt.toDate().getTime();
+                    _list.push({ id: doc.id, isGroup: isGrp, name: nm, otherUid: other, lastTime: lt || 0 });
+                  });
+                  window.__fas_conversations = _list;
+                  if (typeof window.__fas_refreshUnreadBadges === 'function') window.__fas_refreshUnreadBadges();
+                }
+              } catch(e) {}
+              return callbackOrOptions(_patchPlayersSnapshot(snap));
+            } catch(e) { return callbackOrOptions(snap); }
+          };
+          // Pass remaining arguments after callback (if any)
+          var args = [ref, wrappedCb];
+          for (var i = 2; i < arguments.length; i++) args.push(arguments[i]);
+          return _origOnSnap.apply(this, args);
+        } catch(e) { return _origOnSnap.apply(this, arguments); }
+      };
+      window.__fasWrap_fsOnSnap = true;
+      wrapped = true;
+    }
+    return wrapped;
+  }
+  // Try immediately, then retry until all 3 are wrapped
+  var attempts = 0;
+  function pollWrap() {
+    tryWrapAll();
+    attempts++;
+    var allDone = window.__fasWrap_fsGetDocs && window.__fasWrap_fsGetDoc && window.__fasWrap_fsOnSnap;
+    if (!allDone && attempts < 300) setTimeout(pollWrap, 50);
+    else if (allDone) console.log('[inject] All Firestore interceptors wrapped after ' + (attempts * 50) + 'ms');
+  }
+  tryWrapAll();
+  setTimeout(pollWrap, 10);
+  })();
+
   /* =========================================================
      UTILITIES
   ========================================================= */
   const K = {
     accent: 'fas_accent_color',
+    wallpaper: 'fas_wallpaper',
     watching: 'fas_continue_watching',
     history: 'fas_watch_history',
     suggestions: 'fas_my_suggestions',
@@ -45,22 +145,138 @@
     } catch {}
   }
 
+  // Downscale a base64 image data URL until it fits under ~250 KB so the
+  // Firestore message document stays within its 1 MiB limit.
+  function _shrinkDataUrl(dataUrl) {
+    return new Promise(function(resolve) {
+      try {
+        var img = new Image();
+        img.onload = function() {
+          try {
+            var target = 250 * 1024; // target ~250KB string length
+            var maxW = 800;
+            var w = img.width, h = img.height;
+            var scale = Math.min(1, maxW / w);
+            if (w * scale * img.height * scale > 900000) {
+              scale = Math.sqrt(900000 / (w * h));
+            }
+            w = Math.max(1, Math.round(w * scale));
+            h = Math.max(1, Math.round(h * scale));
+            var canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            var q = 0.7, out = null;
+            for (var iter = 0; iter < 8; iter++) {
+              out = canvas.toDataURL('image/jpeg', q);
+              if (out.length <= target) break;
+              q -= 0.1;
+            }
+            // If still too big, drop max dimension and retry once at lower res
+            if (out.length > target && w > 400) {
+              var w2 = Math.round(w * 0.5), h2 = Math.round(h * 0.5);
+              var c2 = document.createElement('canvas');
+              c2.width = w2; c2.height = h2;
+              c2.getContext('2d').drawImage(img, 0, 0, w2, h2);
+              out = c2.toDataURL('image/jpeg', 0.6);
+            }
+            resolve(out.length < dataUrl.length ? out : dataUrl);
+          } catch(e) { resolve(dataUrl); }
+        };
+        img.onerror = function() { resolve(dataUrl); };
+        img.src = dataUrl;
+      } catch(e) { resolve(dataUrl); }
+    });
+  }
+
   function _installPostCooldown() {
     try {
       const orig = window.fsAddDoc;
       if (!orig || window.__fas_cooldownInstalled) return;
       window.__fas_cooldownInstalled = true;
+      window.__fas_lastCallTime = 0;
+      window.__fas_lastDmTime = 0;
       window.fsAddDoc = function(collectionRef, data) {
         try {
-          if (collectionRef && (collectionRef.id === 'posts')) {
+          if (!collectionRef) return orig.apply(window, arguments);
+          const colId = collectionRef.id || '';
+          const colPath = (collectionRef.path || collectionRef._queryPath || '') + '';
+
+          // When creating a conversation doc, make sure name_/photo_ fields use
+          // real resolved names from the users cache (not raw UIDs).
+          if (colId === 'conversations' && data && typeof data === 'object') {
+            const cache = window.__fas_usersCache || {};
+            Object.keys(data).forEach(k => {
+              const m = /^name_(.+)$/.exec(k);
+              if (m) {
+                const uid = m[1];
+                const raw = data[k];
+                const c = cache[uid];
+                if (c && c.displayName && !looksLikeUid(c.displayName) && (looksLikeUid(raw || '') || !raw)) {
+                  data[k] = c.displayName;
+                }
+              }
+              const p = /^photo_(.+)$/.exec(k);
+              if (p) {
+                const uid = p[1];
+                const raw = data[k];
+                const c = cache[uid];
+                if (c && c.photoURL && !raw) {
+                  data[k] = c.photoURL;
+                }
+              }
+            });
+          }
+
+          // Post cooldown: 3s
+          if (colId === 'posts') {
             const last = parseInt(localStorage.getItem('fas_last_post_time') || '0');
             const now = Date.now();
-            if (now - last < 60000 && last > 0) {
-              const s = Math.ceil((60000 - (now - last)) / 1000);
+            if (now - last < 3000 && last > 0) {
+              const s = Math.ceil((3000 - (now - last)) / 1000);
               _showToast(`Wait ${s}s before posting again`, '#e53935');
               return Promise.reject(new Error(`Cooldown: ${s}s remaining`));
             }
             try { localStorage.setItem('fas_last_post_time', String(now)); } catch {}
+          }
+
+          // DM message cooldown: 3s
+          if (colPath.includes('conversations/') && colPath.includes('/messages')) {
+            const now = Date.now();
+            if (now - window.__fas_lastDmTime < 3000 && window.__fas_lastDmTime > 0) {
+              const s = Math.ceil((3000 - (now - window.__fas_lastDmTime)) / 1000);
+              _showToast(`Wait ${s}s before sending again`, '#e53935');
+              return Promise.reject(new Error(`DM Cooldown: ${s}s remaining`));
+            }
+            window.__fas_lastDmTime = now;
+
+            // Fix DM images: base64 data URLs stored in Firestore must stay well
+            // under the 1 MiB document limit, or addDoc fails ("can't send images").
+            if (data && typeof data.imageUrl === 'string' && data.imageUrl.indexOf('data:') === 0 && data.imageUrl.length > 300000) {
+              return _shrinkDataUrl(data.imageUrl).then(function(smaller) {
+                if (smaller !== data.imageUrl) data.imageUrl = smaller;
+                return orig.apply(window, arguments);
+              }).catch(function() {
+                return orig.apply(window, arguments);
+              });
+            }
+          }
+
+// Call cooldown: 13s
+          if (colId === 'calls' && !colPath.includes('candidates')) {
+            // Block calls inside group conversations
+            if (data && (data.isGroupCall === true || (data.isGroupCall && data.isGroupCall !== false))) {
+              _showToast('Calling is disabled in groups', '#e53935');
+              return Promise.reject(new Error('Group calls disabled'));
+            }
+            const now = Date.now();
+            if (now - window.__fas_lastCallTime < 13000 && window.__fas_lastCallTime > 0) {
+              const s = Math.ceil((13000 - (now - window.__fas_lastCallTime)) / 1000);
+              _showToast(`Wait ${s}s before calling again`, '#e53935');
+              return Promise.reject(new Error(`Call Cooldown: ${s}s remaining`));
+            }
+            window.__fas_lastCallTime = now;
           }
         } catch {}
         return orig.apply(window, arguments);
@@ -68,8 +284,18 @@
     } catch {}
   }
 
+  // Install cooldown interceptor with polling (wait for Firebase to load)
+  var _cooldownPollCount = 0;
+  var _cooldownPoll = setInterval(function() {
+    if (window.fsAddDoc && !window.__fas_cooldownInstalled) {
+      _installPostCooldown();
+    }
+    _cooldownPollCount++;
+    if (_cooldownPollCount > 300 || window.__fas_cooldownInstalled) clearInterval(_cooldownPoll);
+  }, 50);
+
   /* =========================================================
-     1.  THEME / ACCENT COLOR  (feature 9 – injected into Settings)
+     1.  THEME / ACCENT COLOR  (feature 9 â€“ injected into Settings)
   ========================================================= */
   const SWATCHES = [
     { name: 'Crimson',  val: '#ef4444' },
@@ -85,6 +311,221 @@
   ];
 
   let curAccent = gs(K.accent, '#ef4444');
+
+  // â”€â”€ Wallpaper Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const WALLPAPERS = [
+    { id: 'none',     name: 'None',           type: 'none' },
+    { id: 'nebula',   name: 'Midnight Nebula', type: 'grad', colors: ['#0f0c29','#302b63','#24243e'] },
+    { id: 'ocean',    name: 'Ocean Depths',    type: 'grad', colors: ['#000428','#004e92','#000428'] },
+    { id: 'sunset',   name: 'Sunset Glow',     type: 'grad', colors: ['#1a0a00','#e65c00','#1a0a00'] },
+    { id: 'aurora',   name: 'Aurora Borealis', type: 'grad', colors: ['#0b1a0e','#1a6b3c','#0d47a1','#0b1a0e'] },
+    { id: 'cyber',    name: 'Cyberpunk Grid',  type: 'grid', colors: ['#0d0221','#3d0080'] },
+    { id: 'matrix',   name: 'Matrix Rain',     type: 'rain', colors: ['#000000','#00ff41'] },
+    { id: 'stars',    name: 'Star Field',      type: 'stars' },
+    { id: 'embers',   name: 'Fire Embers',     type: 'part', colors: ['#1a0000','#ff4500','#ffd700'] },
+    { id: 'waves',    name: 'Neon Waves',      type: 'wave', colors: ['#0a0015','#ff00ff','#00ffff'] },
+    { id: 'darkmatter',name: 'Dark Matter',    type: 'drift', colors: ['#0a0a0f','#1a1a2e'] },
+  ];
+  let _curWallpaper = gs(K.wallpaper, 'none');
+  let _wpStyleEl = null;
+  let _wpCanvasEl = null;
+  let _wpAnimFrame = null;
+
+  function applyWallpaper(id) {
+    const wp = WALLPAPERS.find(w => w.id === id) || WALLPAPERS[0];
+    _curWallpaper = wp.id;
+    ss(K.wallpaper, wp.id);
+    _cleanupWallpaper();
+
+    if (wp.id === 'none') return;
+
+    _wpStyleEl = document.createElement('style');
+    _wpStyleEl.id = 'fas-wp-style';
+    document.head.appendChild(_wpStyleEl);
+
+    if (wp.type === 'grad') {
+      const angle = wp.colors.length === 4 ? '135deg' : '120deg';
+      const stops = wp.colors.join(', ');
+      _wpStyleEl.textContent = `
+        body::before { content:''; position:fixed; inset:0; z-index:-1;
+          background: linear-gradient(${angle}, ${stops});
+          background-size: 400% 400%;
+          animation: fasWpGrad 15s ease infinite; }
+        @keyframes fasWpGrad { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+        #root > div:first-child { background: transparent !important; }`;
+    } else if (wp.type === 'grid') {
+      _wpStyleEl.textContent = `
+        body::before { content:''; position:fixed; inset:0; z-index:-1;
+          background: linear-gradient(135deg, ${wp.colors[0]}, ${wp.colors[1]});
+          background-size: cover; }
+        body::after { content:''; position:fixed; inset:0; z-index:-1;
+          background-image:
+            linear-gradient(rgba(0,255,255,.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,255,255,.05) 1px, transparent 1px);
+          background-size: 40px 40px;
+          animation: fasWpGrid 4s linear infinite; }
+        @keyframes fasWpGrid { 0%{transform:translate(0,0)} 100%{transform:translate(40px,40px)} }
+        #root > div:first-child { background: transparent !important; }`;
+    } else if (wp.type === 'stars') {
+      _wpStyleEl.textContent = `
+        body::before { content:''; position:fixed; inset:0; z-index:-1; background:#0a0a0f; }
+        #root > div:first-child { background: transparent !important; }`;
+      _initCanvas('stars', wp);
+    } else if (wp.type === 'rain') {
+      _wpStyleEl.textContent = `
+        body::before { content:''; position:fixed; inset:0; z-index:-1; background:#000; }
+        #root > div:first-child { background: transparent !important; }`;
+      _initCanvas('rain', wp);
+    } else if (wp.type === 'part') {
+      _wpStyleEl.textContent = `
+        body::before { content:''; position:fixed; inset:0; z-index:-1; background:${wp.colors[0]}; }
+        #root > div:first-child { background: transparent !important; }`;
+      _initCanvas('fire', wp);
+    } else if (wp.type === 'wave') {
+      _wpStyleEl.textContent = `
+        body::before { content:''; position:fixed; inset:0; z-index:-1;
+          background: linear-gradient(135deg, ${wp.colors[0]}, ${wp.colors[1]}, ${wp.colors[2]});
+          background-size: 400% 400%;
+          animation: fasWpGrad 12s ease infinite; }
+        @keyframes fasWpGrad { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+        #root > div:first-child { background: transparent !important; }`;
+      _initCanvas('sine', wp);
+    } else if (wp.type === 'drift') {
+      _wpStyleEl.textContent = `
+        body::before { content:''; position:fixed; inset:0; z-index:-1;
+          background: linear-gradient(135deg, ${wp.colors[0]}, ${wp.colors[1]});
+          background-size: cover; }
+        #root > div:first-child { background: transparent !important; }`;
+      _initCanvas('drift', wp);
+    }
+  }
+
+  function _cleanupWallpaper() {
+    if (_wpStyleEl) { _wpStyleEl.remove(); _wpStyleEl = null; }
+    if (_wpCanvasEl) {
+      removeEventListener('resize', _wpCanvasEl._resizeFn);
+      _wpCanvasEl.remove(); _wpCanvasEl = null;
+    }
+    if (_wpAnimFrame) { cancelAnimationFrame(_wpAnimFrame); _wpAnimFrame = null; }
+  }
+
+  function _initCanvas(type, wp) {
+    _wpCanvasEl = document.createElement('canvas');
+    _wpCanvasEl.id = 'fas-wp-canvas';
+    _wpCanvasEl.style.cssText = 'position:fixed;inset:0;z-index:0;pointer-events:none;';
+    document.body.appendChild(_wpCanvasEl);
+    const ctx = _wpCanvasEl.getContext('2d');
+    let w, h;
+
+    function resize() { w = _wpCanvasEl.width = innerWidth; h = _wpCanvasEl.height = innerHeight; }
+    resize();
+    _wpCanvasEl._resizeFn = resize;
+    addEventListener('resize', _wpCanvasEl._resizeFn);
+
+    if (type === 'stars') {
+      const stars = Array.from({length:200}, () => ({
+        x:Math.random()*w, y:Math.random()*h, r:Math.random()*1.5+0.3,
+        s:Math.random()*0.02+0.005, o:Math.random()
+      }));
+      let t = 0;
+      function draw() {
+        _wpAnimFrame = requestAnimationFrame(draw);
+        t++;
+        ctx.clearRect(0,0,w,h);
+        for (const s of stars) {
+          const flicker = 0.5 + 0.5 * Math.sin(t * s.s + s.o * 10);
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(255,255,255,${0.3 + 0.7 * flicker})`;
+          ctx.fill();
+        }
+      }
+      draw();
+    } else if (type === 'rain') {
+      const chars = 'ï¾Šï¾ï¾‹ï½³ï½¼ï¾…ï¾“ï¾†ï½»ï¾œï¾‚ï½µï¾˜ï½±ï¾Žï¾ƒï¾ï½¹ï¾’ï½´ï½¶ï½·ï¾‘ï¾•ï¾—ï½¾ï¾ˆï½½ï¾€ï¾‡ï¾01';
+      const drops = Array.from({length:Math.floor(w/14)}, () => ({x:Math.random()*w, y:Math.random()*-h, s:Math.random()*3+2}));
+      function draw() {
+        _wpAnimFrame = requestAnimationFrame(draw);
+        ctx.fillStyle = 'rgba(0,0,0,0.05)';
+        ctx.fillRect(0,0,w,h);
+        ctx.font = '14px monospace';
+        for (const d of drops) {
+          const c = chars[Math.floor(Math.random()*chars.length)];
+          ctx.fillStyle = Math.random() > 0.98 ? '#fff' : '#0f0';
+          ctx.fillText(c, d.x, d.y);
+          d.y += d.s;
+          if (d.y > h) { d.y = -20; d.x = Math.random()*w; }
+        }
+      }
+      draw();
+    } else if (type === 'fire') {
+      const pts = Array.from({length:60}, () => ({
+        x:Math.random()*w, y:h+Math.random()*50, vx:(Math.random()-0.5)*1.5, vy:-Math.random()*3-1, s:Math.random()*3+1, life:1
+      }));
+      function draw() {
+        _wpAnimFrame = requestAnimationFrame(draw);
+        ctx.fillStyle = 'rgba(0,0,0,0.05)';
+        ctx.fillRect(0,0,w,h);
+        for (const p of pts) {
+          p.x += p.vx; p.y += p.vy; p.life -= 0.005;
+          if (p.life <= 0 || p.y < -10) {
+            p.x = Math.random()*w; p.y = h+Math.random()*20;
+            p.vy = -Math.random()*3-1; p.life = 1;
+          }
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.s * p.life, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(255,${100 + Math.floor(100*p.life)},0,${0.5*p.life})`;
+          ctx.fill();
+        }
+      }
+      draw();
+    } else if (type === 'sine') {
+      let t = 0;
+      function draw() {
+        _wpAnimFrame = requestAnimationFrame(draw);
+        t += 0.02;
+        ctx.clearRect(0,0,w,h);
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          const amp = 25 + i * 15;
+          const freq = 0.02 + i * 0.008;
+          const phase = t * (1 + i * 0.3);
+          ctx.moveTo(0, h/2 + Math.sin(phase) * amp);
+          for (let x = 0; x < w; x += 3) {
+            ctx.lineTo(x, h/2 + Math.sin(x * freq + phase) * amp + Math.sin(x * freq * 0.5 + t * 0.5) * 10);
+          }
+          ctx.strokeStyle = `hsla(${280 + i * 40},100%,60%,0.15)`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      }
+      draw();
+    } else if (type === 'drift') {
+      const pts = Array.from({length:30}, () => ({
+        x:Math.random()*w, y:Math.random()*h, r:Math.random()*2+0.5,
+        vx:(Math.random()-0.5)*0.3, vy:(Math.random()-0.5)*0.3, o:Math.random()*0.5+0.1
+      }));
+      function draw() {
+        _wpAnimFrame = requestAnimationFrame(draw);
+        ctx.clearRect(0,0,w,h);
+        for (const p of pts) {
+          p.x += p.vx; p.y += p.vy;
+          if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
+          if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(100,150,255,${p.o})`;
+          ctx.fill();
+        }
+      }
+      draw();
+    }
+  }
+
+  // Load saved wallpaper on init
+  if (_curWallpaper !== 'none') {
+    setTimeout(() => applyWallpaper(_curWallpaper), 100);
+  }
 
   function applyAccent(hex) {
     curAccent = hex;
@@ -160,6 +601,26 @@
           <span style="font-size:11px;opacity:.6;color:var(--mk-silver,#ccc);">Custom</span>
           <code id="fas-hex-label" style="font-size:11px;color:var(--mk-gold,#f5c518);font-family:monospace;">${curAccent}</code>
         </div>
+      </div>
+      <div style="margin-top:20px;font-size:11px;color:var(--mk-eye-glow,#ff6b6b);text-transform:uppercase;margin-bottom:14px;font-weight:700;display:flex;align-items:center;gap:7px;letter-spacing:.06em;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Profile
+      </div>
+      <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,215,0,.07);border-radius:14px;padding:14px;">
+        <div style="font-size:11px;opacity:.55;color:var(--mk-silver,#ccc);margin-bottom:10px;">Display Name</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input id="fas-name-input" type="text" maxlength="12" placeholder="Enter name..."
+            style="flex:1;min-width:140px;padding:8px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-size:13px;outline:none;font-family:inherit;">
+          <button id="fas-name-save" style="padding:8px 16px;background:rgba(255,215,0,.12);border:1px solid rgba(255,215,0,.25);border-radius:10px;color:rgba(255,215,0,.85);font-size:12px;font-weight:600;cursor:pointer;transition:background .15s;">Save</button>
+        </div>
+        <div id="fas-name-hint" style="font-size:10px;color:rgba(255,255,255,.3);margin-top:8px;">Letters only, max 12 characters</div>
+      </div>
+      <div style="margin-top:20px;font-size:11px;color:var(--mk-eye-glow,#ff6b6b);text-transform:uppercase;margin-bottom:14px;font-weight:700;display:flex;align-items:center;gap:7px;letter-spacing:.06em;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+        Wallpaper
+      </div>
+      <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,215,0,.07);border-radius:14px;padding:14px;">
+        <div id="fas-wp-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;"></div>
       </div>`;
     container.appendChild(sec);
 
@@ -167,6 +628,169 @@
       btn.addEventListener('click', () => applyAccent(btn.dataset.val));
     });
     sec.querySelector('#fas-custom-picker').addEventListener('input', e => applyAccent(e.target.value));
+
+    // â”€â”€ Display Name editor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    var _nameInput = sec.querySelector('#fas-name-input');
+    var _nameSave = sec.querySelector('#fas-name-save');
+    var _nameHint = sec.querySelector('#fas-name-hint');
+    if (_nameInput && _nameSave) {
+      // Load current name from localStorage
+      try {
+        var _curName = localStorage.getItem('fas_custom_name') || '';
+        if (_curName) _nameInput.value = _curName;
+      } catch(e) {}
+
+      // Input validation: only letters, max 12
+      _nameInput.addEventListener('input', function() {
+        var v = this.value;
+        // Strip non-letters
+        var cleaned = v.replace(/[^a-zA-Z]/g, '').slice(0, 12);
+        if (cleaned !== v) {
+          this.value = cleaned;
+          _nameHint.textContent = 'Letters only, max 12 characters';
+          _nameHint.style.color = 'rgba(255,255,255,.3)';
+        }
+        if (cleaned.length === 12) {
+          _nameHint.textContent = 'Max 12 characters reached';
+          _nameHint.style.color = 'rgba(255,215,0,.5)';
+        }
+      });
+
+      _nameSave.addEventListener('click', function() {
+        var name = (_nameInput.value || '').replace(/[^a-zA-Z]/g, '').slice(0, 12).trim();
+        if (!name) {
+          _nameHint.textContent = 'Name cannot be empty';
+          _nameHint.style.color = '#ef5350';
+          return;
+        }
+        if (name.length < 2) {
+          _nameHint.textContent = 'Name must be at least 2 letters';
+          _nameHint.style.color = '#ef5350';
+          return;
+        }
+        // Capitalise
+        name = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+        _nameInput.value = name;
+        _saveCustomName(name);
+        _nameHint.textContent = 'Saved! Name updated to ' + name;
+        _nameHint.style.color = 'rgba(52,211,153,.8)';
+        setTimeout(function() {
+          _nameHint.textContent = 'Letters only, max 12 characters';
+          _nameHint.style.color = 'rgba(255,255,255,.3)';
+        }, 3000);
+      });
+    }
+
+    // â”€â”€ Wallpaper grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    var _wpGrid = sec.querySelector('#fas-wp-grid');
+    if (_wpGrid) {
+      WALLPAPERS.forEach(function(w) {
+        var card = document.createElement('button');
+        card.dataset.wp = w.id;
+        card.title = w.name;
+        var isActive = w.id === _curWallpaper;
+        var previewBg = w.type === 'none' ? '#0d1117' : w.colors ? (w.colors.length > 2 ? 'linear-gradient(135deg,' + w.colors.slice(0,3).join(',') + ')' : 'linear-gradient(135deg,' + w.colors.join(',') + ')') : '#0d1117';
+        card.style.cssText = 'aspect-ratio:1;border-radius:10px;border:2px solid ' + (isActive ? 'rgba(255,215,0,.7)' : 'rgba(255,255,255,.08)') + ';background:' + previewBg + ';cursor:pointer;position:relative;overflow:hidden;outline:none;transition:border-color .15s,transform .15s;';
+        card.innerHTML = '<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:' + (isActive ? 'rgba(255,215,0,.9)' : 'rgba(255,255,255,.5)') + ';background:rgba(0,0,0,.35);text-shadow:0 1px 3px rgba(0,0,0,.5);padding:4px;text-align:center;line-height:1.2;">' + w.name + '</span>';
+        card.addEventListener('click', function() {
+          applyWallpaper(this.dataset.wp);
+          _wpGrid.querySelectorAll('button').forEach(function(b) {
+            var active = b.dataset.wp === _curWallpaper;
+            b.style.borderColor = active ? 'rgba(255,215,0,.7)' : 'rgba(255,255,255,.08)';
+            b.querySelector('span').style.color = active ? 'rgba(255,215,0,.9)' : 'rgba(255,255,255,.5)';
+          });
+        });
+        card.addEventListener('mouseenter', function() { this.style.transform = 'scale(1.05)'; });
+        card.addEventListener('mouseleave', function() { this.style.transform = 'scale(1)'; });
+        _wpGrid.appendChild(card);
+      });
+    }
+
+    // ——— Music Player hide toggle ———
+    var _musicSec = document.createElement('div');
+    _musicSec.style.cssText = 'margin-top:28px;';
+    _musicSec.innerHTML =
+      '<div style="font-size:11px;color:var(--mk-eye-glow,#ff6b6b);text-transform:uppercase;margin-bottom:14px;font-weight:700;display:flex;align-items:center;gap:7px;letter-spacing:.06em;">' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M9 9.5v5a2.5 2.5 0 0 1-5 0v-5a2.5 2.5 0 0 1 5 0zM20 9.5v5a2.5 2.5 0 0 1-5 0v-5a2.5 2.5 0 0 1 5 0z"/></svg>' +
+      'Music Player</div>' +
+      '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,215,0,.07);border-radius:14px;padding:14px;">' +
+      '<div style="display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;">' +
+      '<span style="font-size:12px;color:var(--mk-silver,#ccc);flex:1;min-width:140px;">Hide the music player (bottom left)</span>' +
+      '<button id="fas-music-toggle" style="padding:9px 18px;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;border:none;"></button>' +
+      '</div>' +
+      '<div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:8px;">You can still switch songs before hiding it — this only hides the visual widget, audio keeps playing.</div>' +
+      '</div>';
+    container.appendChild(_musicSec);
+
+    var _musicBtn = _musicSec.querySelector('#fas-music-toggle');
+    function _refreshMusicBtn() {
+      var hide = (localStorage.getItem('fas_hide_music') === '1');
+      _musicBtn.textContent = hide ? 'Show Music' : 'Hide Music';
+      _musicBtn.style.background = hide ? 'rgba(239,68,68,.15)' : 'rgba(255,215,0,.12)';
+      _musicBtn.style.color = hide ? '#ef5350' : 'rgba(255,215,0,.85)';
+      _musicBtn.style.border = '1px solid ' + (hide ? 'rgba(239,68,68,.25)' : 'rgba(255,215,0,.25)');
+    }
+    _refreshMusicBtn();
+    _musicBtn.addEventListener('click', function() {
+      var hide = (localStorage.getItem('fas_hide_music') === '1');
+      localStorage.setItem('fas_hide_music', hide ? '0' : '1');
+      applyMusicVisibility();
+      _refreshMusicBtn();
+    });
+
+    // Ensure visibility is applied for whatever is stored
+    applyMusicVisibility();
+  }
+
+  /* Hide/show the bottom-left music player based on the stored setting */
+  function applyMusicVisibility() {
+    try {
+      var hide = (localStorage.getItem('fas_hide_music') === '1');
+      _ensureMusicCss();
+      if (hide) document.body.classList.add('fas-hide-music');
+      else document.body.classList.remove('fas-hide-music');
+    } catch(e) {}
+  }
+
+  /* Inject the CSS that hides the music player widget */
+  function _ensureMusicCss() {
+    if (document.getElementById('fas-music-css')) return;
+    var s = document.createElement('style');
+    s.id = 'fas-music-css';
+    s.textContent =
+      'body.fas-hide-music div[style*="position: fixed"][style*="bottom: 12px"][style*="left: 12px"],' +
+      'body.fas-hide-music div[style*="position:fixed"][style*="bottom:12px"][style*="left:12px"]' +
+      '{ display: none !important; }';
+    try { document.head.appendChild(s); } catch(e) {}
+  }
+
+  function _saveCustomName(name) {
+    try {
+      localStorage.setItem('fas_custom_name', name);
+      // Also update the in-memory user object
+      var user = window.__FIREBASE_USER__ || window.__USER__;
+      if (user) user.customDisplayName = name;
+      // Trigger the Firestore patch to save
+      _patchFirestoreName(name);
+    } catch(e) {}
+  }
+
+  function _patchFirestoreName(name) {
+    try {
+      var user = window.__FIREBASE_USER__ || window.__USER__;
+      if (!user || !user.uid || !window.fsSetDoc || !window.fsDoc || !window.db) return;
+      window.fsSetDoc(
+        window.fsDoc(window.db, 'players', user.uid),
+        { displayName: name, customName: name },
+        { merge: true }
+      ).then(function() {
+        // Bust cache and re-render
+        window.__fas_usersCache = null;
+        if (typeof loadUsersCache === 'function' && typeof patchUserCardsInDOM === 'function') {
+          loadUsersCache().then(function() { patchUserCardsInDOM(); });
+        }
+      }).catch(function() {});
+    } catch(e) {}
   }
 
   /* =========================================================
@@ -190,7 +814,6 @@
     if (h.includes('an1m') || h.includes('anim') || url.includes('anime') || title.includes('anime')) return 'anime';
     if (h.includes('show') || h.includes('tv') || url.includes('/tv') || url.includes('/show')) return 'tv';
     if (h.includes('manga') || url.includes('manga')) return 'manga';
-    if (h.includes('game') || h.includes('g4m3') || url.includes('game') || url.includes('/play') || title.includes('game')) return 'game';
     return 'content';
   }
 
@@ -224,16 +847,16 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,215,0,.7)" stroke-width="2.5" style="position:absolute;left:16px;top:50%;transform:translateY(-50%);">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
           </svg>
-          <input id="fas-s-input" type="text" placeholder="Search titles, posts, people…"
+          <input id="fas-s-input" type="text" placeholder="Search titles, posts, peopleâ€¦"
             style="width:100%;padding:16px 50px 16px 46px;background:rgba(8,8,18,.97);border:2px solid rgba(255,215,0,.35);border-radius:14px;color:#fff;font-size:15px;outline:none;box-sizing:border-box;font-family:inherit;">
           <kbd style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:10px;color:rgba(255,255,255,.3);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:2px 7px;pointer-events:none;">ESC</kbd>
         </div>
         <div id="fas-filters" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;">
-          ${['All','Movies','Anime','TV','Manga','Games','Posts'].map((f,i)=>`
+          ${['All','Movies','Anime','TV','Manga','Posts'].map((f,i)=>`
             <button class="fas-fb" data-f="${f.toLowerCase()}"
               style="padding:5px 13px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid ${i===0?'rgba(255,215,0,.5)':'rgba(255,255,255,.12)'};background:${i===0?'rgba(255,215,0,.1)':'transparent'};color:${i===0?'rgba(255,215,0,.9)':'rgba(255,255,255,.45)'};outline:none;transition:all .15s;">${f}</button>`).join('')}
         </div>
-        <div id="fas-s-results" style="color:rgba(255,255,255,.35);font-size:13px;text-align:center;padding:36px 0;">Start typing to search…</div>
+        <div id="fas-s-results" style="color:rgba(255,255,255,.35);font-size:13px;text-align:center;padding:36px 0;">Start typing to searchâ€¦</div>
       </div>`;
     document.body.appendChild(ov);
 
@@ -267,7 +890,7 @@
     function doSearch(q, filter) {
       const res = ov.querySelector('#fas-s-results');
       if (!q || q.length < 2) {
-        res.innerHTML = '<div style="text-align:center;padding:36px 0;color:rgba(255,255,255,.3);">Start typing to search…</div>';
+        res.innerHTML = '<div style="text-align:center;padding:36px 0;color:rgba(255,255,255,.3);">Start typing to searchâ€¦</div>';
         return;
       }
       const ql = q.toLowerCase();
@@ -284,7 +907,7 @@
       if (hits.length) { renderHits(hits, res, q); return; }
 
       // Fallback: Firebase posts
-      res.innerHTML = '<div style="text-align:center;padding:24px;color:rgba(255,255,255,.3);font-size:12px;">Searching…</div>';
+      res.innerHTML = '<div style="text-align:center;padding:24px;color:rgba(255,255,255,.3);font-size:12px;">Searchingâ€¦</div>';
       waitForFB(async () => {
         try {
           const snap = await window.fsGetDocs(window.fsCollection(window.db, 'posts'));
@@ -295,7 +918,7 @@
             const name = (d.authorName || d.author || '').toLowerCase();
             if ((filter === 'all' || filter === 'posts') && (content.includes(ql) || name.includes(ql))) {
               const displayName = d.authorName || d.author || '';
-              results.push({ id: doc.id, title: `${displayName}: ${(d.content||'').slice(0,55)}…`, imageUrl: d.authorPhoto||null, type: 'post' });
+              results.push({ id: doc.id, title: `${displayName}: ${(d.content||'').slice(0,55)}â€¦`, imageUrl: d.authorPhoto||null, type: 'post' });
             }
           });
           renderHits(results, res, q);
@@ -305,7 +928,7 @@
 
     function renderHits(hits, el, q) {
       if (!hits.length) {
-        el.innerHTML = `<div style="text-align:center;padding:36px 0;color:rgba(255,255,255,.3);"><div style="font-size:28px;margin-bottom:10px;">🔍</div>No results for <strong style="color:rgba(255,255,255,.5);">"${esc(q)}"</strong><div style="font-size:11px;margin-top:6px;opacity:.6;">Browse a hub first to populate your history.</div></div>`;
+        el.innerHTML = `<div style="text-align:center;padding:36px 0;color:rgba(255,255,255,.3);"><div style="font-size:28px;margin-bottom:10px;">ðŸ”</div>No results for <strong style="color:rgba(255,255,255,.5);">"${esc(q)}"</strong><div style="font-size:11px;margin-top:6px;opacity:.6;">Browse a hub first to populate your history.</div></div>`;
         return;
       }
       el.innerHTML = `
@@ -315,7 +938,7 @@
             <div style="border-radius:10px;overflow:hidden;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);">
               ${item.imageUrl
                 ? `<img src="${esc(item.imageUrl)}" alt="${esc(item.title)}" loading="lazy" style="width:100%;aspect-ratio:2/3;object-fit:cover;">`
-                : `<div style="width:100%;aspect-ratio:2/3;background:rgba(255,215,0,.05);display:flex;align-items:center;justify-content:center;font-size:26px;">🎬</div>`}
+                : `<div style="width:100%;aspect-ratio:2/3;background:rgba(255,215,0,.05);display:flex;align-items:center;justify-content:center;font-size:26px;">ðŸŽ¬</div>`}
               <div style="padding:7px;">
                 <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.8);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.3;">${esc(item.title)}</div>
                 <div style="font-size:9px;color:rgba(255,215,0,.55);margin-top:3px;text-transform:uppercase;">${esc(item.type)}</div>
@@ -359,9 +982,9 @@
 
     panel.innerHTML = `
       <div style="padding:14px 16px 10px;border-bottom:1px solid rgba(255,255,255,.06);">
-        <div style="font-size:13px;font-weight:700;color:var(--mk-gold,#f5c518);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">⚡ Extensions</div>
+        <div style="font-size:13px;font-weight:700;color:var(--mk-gold,#f5c518);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">âš¡ Extensions</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          ${[['watching','▶ Watching'],['history','📜 History'],['search','🔍 Search'],['suggest','💡 Suggest'],['proxy','🌐 Proxy']].map(([id,label],i) => `
+            ${[['watching','â–¶ Watching'],['history','ðŸ“œ History'],['search','ðŸ” Search'],['suggest','ðŸ’¡ Suggest']].map(([id,label],i) => `
             <button class="fas-ptab" data-tab="${id}"
               style="font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid ${i===0?'rgba(255,215,0,.4)':'rgba(255,255,255,.1)'};background:${i===0?'rgba(255,215,0,.1)':'transparent'};color:${i===0?'rgba(255,215,0,.9)':'rgba(255,255,255,.4)'};cursor:pointer;white-space:nowrap;transition:all .15s;outline:none;">${label}</button>`).join('')}
         </div>
@@ -391,7 +1014,7 @@
       else if (tab === 'history') renderHistory(body);
       else if (tab === 'search') renderSearchTab(body);
       else if (tab === 'suggest') renderSuggest(body);
-      else if (tab === 'proxy') renderProxy(body);
+      // proxy tab removed
     }
 
     fab.addEventListener('click', () => {
@@ -409,7 +1032,7 @@
   function renderWatching(el) {
     const items = gs(K.watching, []);
     if (!items.length) {
-      el.innerHTML = emptyState('🎬', 'Click on any movie, anime, or show card to track it here.');
+      el.innerHTML = emptyState('ðŸŽ¬', 'Click on any movie, anime, or show card to track it here.');
       return;
     }
     el.innerHTML = `
@@ -428,7 +1051,7 @@
   /* ---- History ---- */
   function renderHistory(el) {
     const items = gs(K.history, []);
-    if (!items.length) { el.innerHTML = emptyState('📜', 'No history yet.'); return; }
+    if (!items.length) { el.innerHTML = emptyState('ðŸ“œ', 'No history yet.'); return; }
     el.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.05em;">Watch History (${items.length})</div>
@@ -450,27 +1073,16 @@
     });
   }
 
-  /* ---- Proxy Launcher ---- */
-  function renderProxy(el) {
-    el.innerHTML = `
-      <div style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;">Web Proxy</div>
-      <a href="/proxy.html" target="_blank" style="display:flex;align-items:center;gap:10px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.3);border-radius:10px;padding:14px 16px;color:#e8e9f0;text-decoration:none;font-weight:600;font-size:13px;transition:background 0.15s;" onmouseover="this.style.background='rgba(229,57,53,0.22)'" onmouseout="this.style.background='rgba(229,57,53,0.12)'">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e53935" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-        Open Proxy Hub
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2" style="margin-left:auto"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-      </a>
-      <div style="margin-top:10px;font-size:11px;color:rgba(255,255,255,.3);line-height:1.5;">Both FasahatHub proxies available inside. Use About:Blank mode in proxy settings for stealth browsing.</div>
-    `;
-  }
+  /* proxy removed */
 
   /* ---- Activity Feed (from DM contacts) ---- */
   function renderActivity(el) {
     const user = window.__FIREBASE_USER__ || window.__USER__;
     if (!user) {
-      el.innerHTML = emptyState('🔐', 'Sign in to see activity from your DM contacts.');
+      el.innerHTML = emptyState('ðŸ”', 'Sign in to see activity from your DM contacts.');
       return;
     }
-    el.innerHTML = `<div style="text-align:center;padding:32px 0;color:rgba(255,255,255,.35);font-size:12px;">Loading…</div>`;
+    el.innerHTML = `<div style="text-align:center;padding:32px 0;color:rgba(255,255,255,.35);font-size:12px;">Loadingâ€¦</div>`;
 
     waitForFB(async () => {
       const { db, fsCollection, fsGetDocs, fsQuery, fsOrderBy } = window;
@@ -484,7 +1096,7 @@
         });
 
         if (!contacts.size) {
-          el.innerHTML = emptyState('💬', "No DM contacts yet — start a conversation first!");
+          el.innerHTML = emptyState('ðŸ’¬', "No DM contacts yet â€” start a conversation first!");
           return;
         }
 
@@ -507,7 +1119,7 @@
         });
 
         if (!feed.length) {
-          el.innerHTML = emptyState('📭', 'None of your DM contacts have posted recently.');
+          el.innerHTML = emptyState('ðŸ“­', 'None of your DM contacts have posted recently.');
           return;
         }
 
@@ -539,7 +1151,7 @@
   function renderSearchTab(el) {
     el.innerHTML = `
       <div style="text-align:center;padding:24px 0;">
-        <div style="font-size:32px;margin-bottom:12px;">🔍</div>
+        <div style="font-size:32px;margin-bottom:12px;">ðŸ”</div>
         <div style="font-size:13px;color:rgba(255,255,255,.65);margin-bottom:16px;">Global search across all your content history</div>
         <button id="fas-open-search-btn"
           style="padding:10px 24px;background:var(--mk-accent-red,#ef4444);border:none;border-radius:10px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;letter-spacing:.04em;">
@@ -559,9 +1171,9 @@
     el.innerHTML = `
       <div style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;">Suggest a Feature to Admin</div>
       <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,215,0,.1);border-radius:12px;padding:14px;margin-bottom:14px;">
-        <textarea id="fas-sug-text" placeholder="Describe your idea…"
+        <textarea id="fas-sug-text" placeholder="Describe your ideaâ€¦"
           style="width:100%;min-height:72px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:rgba(255,255,255,.8);font-size:12px;padding:8px;resize:vertical;outline:none;font-family:inherit;box-sizing:border-box;line-height:1.5;"></textarea>
-        <input id="fas-sug-cat" type="text" placeholder="Category (Movies, Social, Design…)"
+        <input id="fas-sug-cat" type="text" placeholder="Category (Movies, Social, Designâ€¦)"
           style="width:100%;margin-top:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:rgba(255,255,255,.8);font-size:12px;padding:8px;outline:none;font-family:inherit;box-sizing:border-box;">
         <button id="fas-sug-submit"
           style="margin-top:10px;width:100%;padding:10px;background:var(--mk-accent-red,#ef4444);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:12px;cursor:pointer;transition:opacity .2s;">
@@ -584,7 +1196,7 @@
       const category = el.querySelector('#fas-sug-cat').value.trim() || 'General';
       if (!text) return;
       const btn = el.querySelector('#fas-sug-submit');
-      btn.textContent = 'Submitting…'; btn.style.opacity = '.6';
+      btn.textContent = 'Submittingâ€¦'; btn.style.opacity = '.6';
 
       const sug = {
         text, category, timestamp: Date.now(),
@@ -599,13 +1211,13 @@
           await window.fsAddDoc(window.fsCollection(window.db, 'feature_suggestions'), sug);
       } catch {}
 
-      btn.textContent = '✓ Submitted!'; btn.style.background = '#10b981'; btn.style.opacity = '1';
+      btn.textContent = 'âœ“ Submitted!'; btn.style.background = '#10b981'; btn.style.opacity = '1';
       setTimeout(() => renderSuggest(el), 2000);
     });
   }
 
   /* =========================================================
-     5.  PROFILE CLICK → DM / POSTS NAV  (feature 15)
+     5.  PROFILE CLICK â†’ DM / POSTS NAV  (feature 15)
          Injects buttons into UserProfileModal when it opens
   ========================================================= */
   function tryInjectProfileModal(node) {
@@ -618,24 +1230,24 @@
     const modalRoot = followBtn.closest('[class*="fixed"]') || followBtn.closest('[class*="modal"]') || followBtn.closest('[class*="z-50"]');
     if (!modalRoot || modalRoot.querySelector('#fas-profile-nav')) return;
 
-    // Find the UID — look for data in parent or from displayed text
+    // Find the UID â€” look for data in parent or from displayed text
     const navRow = document.createElement('div');
     navRow.id = 'fas-profile-nav';
     navRow.style.cssText = 'display:flex;gap:8px;margin:10px 16px;';
     navRow.innerHTML = `
       <button id="fas-goto-posts"
         style="flex:1;padding:8px;border-radius:10px;background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.2);color:rgba(255,215,0,.85);font-size:11px;cursor:pointer;font-weight:600;transition:all .15s;">
-        📝 View Posts
+        ðŸ“ View Posts
       </button>
       <button id="fas-goto-dms"
         style="flex:1;padding:8px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.7);font-size:11px;cursor:pointer;font-weight:600;transition:all .15s;">
-        💬 Send DM
+        ðŸ’¬ Send DM
       </button>`;
 
     followBtn.parentElement?.insertAdjacentElement('afterend', navRow) ||
       modalRoot.querySelector('[class*="overflow-y"]')?.prepend(navRow);
 
-    // Clicking "View Posts" — close modal and navigate to posts tab
+    // Clicking "View Posts" â€” close modal and navigate to posts tab
     navRow.querySelector('#fas-goto-posts').addEventListener('click', () => {
       // Click close button in modal
       const closeBtn = modalRoot.querySelector('button[class*="close"], button svg[class*="X"]')
@@ -649,7 +1261,7 @@
       }, 300);
     });
 
-    // Clicking "Send DM" — close modal and navigate to DMs
+    // Clicking "Send DM" â€” close modal and navigate to DMs
     navRow.querySelector('#fas-goto-dms').addEventListener('click', () => {
       const closeBtn = [...modalRoot.querySelectorAll('button')].find(b =>
         b.title === 'Close' || b.getAttribute('aria-label') === 'Close' || (b.children[0]?.tagName === 'svg' && b.parentElement === modalRoot));
@@ -711,7 +1323,7 @@
   }
 
   /* =========================================================
-     5.  ADMIN — BAN DIALOG  (Feature 11)
+     5.  ADMIN â€” BAN DIALOG  (Feature 11)
   ========================================================= */
   let _banIntercepting = false;
 
@@ -729,11 +1341,11 @@
         <div id="fas-ban-uname" style="font-size:13px;color:rgba(255,255,255,.5);margin-bottom:22px;padding-left:32px;"></div>
         <div style="display:grid;gap:10px;margin-bottom:18px;">
           <button id="fas-ban-perm" style="padding:14px 16px;background:rgba(239,68,68,.12);border:1.5px solid rgba(239,68,68,.35);border-radius:13px;color:#ef4444;font-weight:700;font-size:13px;cursor:pointer;text-align:left;transition:all .15s;">
-            🔒 Permanent Ban
+            ðŸ”’ Permanent Ban
             <div style="font-size:10px;font-weight:400;color:rgba(255,255,255,.35);margin-top:4px;">User is banned indefinitely with no expiry</div>
           </button>
           <button id="fas-ban-temp" style="padding:14px 16px;background:rgba(251,191,36,.07);border:1.5px solid rgba(251,191,36,.25);border-radius:13px;color:#fbbf24;font-weight:700;font-size:13px;cursor:pointer;text-align:left;transition:all .15s;">
-            ⏳ Temporary Ban
+            â³ Temporary Ban
             <div style="font-size:10px;font-weight:400;color:rgba(255,255,255,.35);margin-top:4px;">Ban expires after a set number of days</div>
           </button>
         </div>
@@ -763,7 +1375,7 @@
         </div>
         <div style="display:flex;gap:10px;">
           <button id="fas-ban-cancel" style="flex:1;padding:10px 14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:rgba(255,255,255,.5);font-size:12px;font-weight:600;cursor:pointer;transition:background .15s;">Cancel</button>
-          <button id="fas-ban-confirm" style="display:none;flex:1;padding:10px 14px;background:linear-gradient(135deg,#ef4444,#dc2626);border:none;border-radius:10px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(239,68,68,.3);transition:opacity .15s;">⛔ Confirm Ban</button>
+          <button id="fas-ban-confirm" style="display:none;flex:1;padding:10px 14px;background:linear-gradient(135deg,#ef4444,#dc2626);border:none;border-radius:10px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(239,68,68,.3);transition:opacity .15s;">â›” Confirm Ban</button>
         </div>
       </div>`;
     document.body.appendChild(ov);
@@ -890,12 +1502,17 @@
   }, true);
 
   /* =========================================================
-     6.  ADMIN TOOLS PANEL  (Features 3 · 4 · 16)
-         Activity Timeline · DM Inspector · Contact Network
+     6.  ADMIN TOOLS PANEL  (Features 3 Â· 4 Â· 16)
+         Activity Timeline Â· DM Inspector Â· Contact Network
   ========================================================= */
   // Returns true if a string looks like a Firebase UID (28 chars, no spaces, alphanumeric+_-)
-  function looksLikeUid(s) {
+  function   looksLikeUid(s) {
     return typeof s === 'string' && s.length >= 20 && !/\s/.test(s) && /^[A-Za-z0-9_\-]+$/.test(s);
+  }
+
+  // True only when a name is actually usable (real, not a UID, not our fallback)
+  function _isResolvedName(s) {
+    return !!s && !looksLikeUid(s) && !/^User\s+[A-Za-z0-9]/.test(s);
   }
 
   /* =========================================================
@@ -907,78 +1524,175 @@
   ========================================================= */
   function _resolveName(d) {
     const raw = d.displayName || '';
+    // If displayName is a UID-like string, try to look up from usersCache
+    if (looksLikeUid(raw) && window.__fas_usersCache && window.__fas_usersCache[raw]) {
+      const cached = window.__fas_usersCache[raw];
+      if (_isResolvedName(cached.displayName)) return cached.displayName;
+      if (cached.email) return cached.email.split('@')[0];
+    }
     return (
       (!looksLikeUid(raw) && raw ? raw : null) ||
       (d.name        && !looksLikeUid(d.name)     ? d.name     : null) ||
       (d.username    && !looksLikeUid(d.username)  ? d.username : null) ||
       (d.email ? d.email.split('@')[0] : null)
     );
-    // intentionally no fallback here — React will use ne.id itself,
-    // and we don't want to replace that with a worse "User-XXXXXX"
   }
 
-  function _resolvePhoto(d) {
+  function _generateDefaultAvatar(name) {
+    const safeName = (name || 'U');
+    const n = safeName.charAt(0).toUpperCase();
+    // Escape XML special chars so the SVG doesn't break on names like "A&B"
+    const safeN = n.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    var hash = 0;
+    for (let i = 0; i < safeName.length; i++) {
+      hash = safeName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    var hue = ((hash & 0x000000FF) / 255) * 360;
+    var sat = 55 + ((hash >> 8) & 0x1F);
+    var lit = 35 + ((hash >> 13) & 0x0F);
+    var bgColor = 'hsl(' + hue + ',' + sat + '%,' + lit + '%)';
+    return 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" rx="50" fill="' + bgColor + '"/><text x="50" y="50" dy=".35em" text-anchor="middle" fill="white" font-size="40" font-family="Arial,sans-serif" font-weight="bold">' + safeN + '</text></svg>');
+  }
+
+  function _resolvePhoto(d, nameFallback, includeAuthPhoto) {
+    var user = window.__FIREBASE_USER__ || window.__USER__;
+    var authPhoto = user ? (user.photoURL || '') : '';
+    var fallback = _generateDefaultAvatar(nameFallback || d.displayName || d.name || '');
+    if (includeAuthPhoto === false) {
+      return d.photoURL || d.photo || d.avatar || d.avatarUrl ||
+             d.profilePicture || d.picture || fallback;
+    }
     return d.photoURL || d.photo || d.avatar || d.avatarUrl ||
-           d.profilePicture || d.picture || '';
+           d.profilePicture || d.picture || authPhoto || fallback;
   }
 
   function _patchPlayersSnapshot(snapshot) {
-    if (!snapshot || !snapshot.docs || !snapshot.docs.length) return snapshot;
-    const firstPath = snapshot.docs[0]?.ref?.path || '';
-    if (!firstPath.startsWith('players/')) return snapshot;
+    try {
+      if (!snapshot || !snapshot.docs || !snapshot.docs.length) return snapshot;
+      const firstPath = snapshot.docs[0]?.ref?.path || '';
 
-    const authUser = window.__FIREBASE_USER__ || window.__USER__;
-    let anyPatched = false;
-
-    snapshot.docs.forEach(doc => {
-      const d = (doc.data && doc.data()) || {};
-
-      // If this document belongs to the currently logged-in user, always prefer
-      // the Firebase Auth data (guaranteed to be correct)
-      if (authUser && authUser.uid === doc.id) {
-        const authName  = authUser.displayName && !looksLikeUid(authUser.displayName) ? authUser.displayName : null;
-        const authPhoto = authUser.photoURL || '';
-        const fsName    = _resolveName(d);
-        const fsPhoto   = _resolvePhoto(d);
-        const bestName  = authName || fsName;
-        const bestPhoto = authPhoto || fsPhoto;
-        if (bestName || bestPhoto) {
-          anyPatched = true;
-          const origData = doc.data.bind(doc);
-          const patched = () => ({ ...origData(), displayName: bestName || origData().displayName || 'User', photoURL: bestPhoto || origData().photoURL || '' });
-          try { doc.data = patched; } catch(e) { try { Object.defineProperty(doc, 'data', { value: patched, configurable: true }); } catch(e2) {} }
-        }
-        return;
+      // Patch conversations collection: backfill empty photo_{uid} from user cache
+      if (firstPath.startsWith('conversations/')) {
+        const cache = window.__fas_usersCache;
+        if (!cache || Object.keys(cache).length === 0) return snapshot;
+        snapshot.docs.forEach(doc => {
+          const d = (doc.data && doc.data()) || {};
+          const participants = d.participants || [];
+          let hasChanges = false;
+          const patch = {};
+          participants.forEach(uid => {
+            const key = 'photo_' + uid;
+            if (!d[key] && cache[uid] && cache[uid].photoURL) {
+              patch[key] = cache[uid].photoURL;
+              hasChanges = true;
+            }
+          });
+          if (hasChanges) {
+            const origData = doc.data.bind(doc);
+            const patched = () => ({ ...origData(), ...patch });
+            try { doc.data = patched; } catch(e) { try { Object.defineProperty(doc, 'data', { value: patched, configurable: true }); } catch(e2) {} }
+          }
+        });
+        return snapshot;
       }
 
-      const fixedName  = _resolveName(d);
-      const fixedPhoto = _resolvePhoto(d);
-      const nameOk  = !fixedName  || fixedName  === (d.displayName || '');
-      const photoOk = fixedPhoto === (d.photoURL || '');
-      if (nameOk && photoOk) return;
-      anyPatched = true;
-      const origData = doc.data.bind(doc);
-      const patched = () => ({
-        ...origData(),
-        ...(fixedName  ? { displayName: fixedName }  : {}),
-        ...(fixedPhoto ? { photoURL: fixedPhoto }     : {}),
-      });
-      try { doc.data = patched; } catch(e) { try { Object.defineProperty(doc, 'data', { value: patched, configurable: true }); } catch(e2) {} }
-    });
+      if (!firstPath.startsWith('players/')) return snapshot;
 
-    return snapshot; // same reference — preserves prototype methods like docChanges()
+      const authUser = window.__FIREBASE_USER__ || window.__USER__;
+      let anyPatched = false;
+
+      snapshot.docs.forEach(doc => {
+        const d = (doc.data && doc.data()) || {};
+
+        // If this document belongs to the currently logged-in user, always prefer
+        // the custom name (if set), then Firebase Auth data, then Firestore data
+        if (authUser && authUser.uid === doc.id) {
+          const customName = d.customName || localStorage.getItem('fas_custom_name') || '';
+          const authName  = authUser.displayName && _isResolvedName(authUser.displayName) ? authUser.displayName : null;
+          const authPhoto = authUser.photoURL || '';
+          const fsName    = _resolveName(d);
+          const bestName  = customName || fsName || authName;
+          const fsPhoto   = _resolvePhoto(d, bestName);
+          const bestPhoto = fsPhoto || authPhoto;
+          if (bestName || bestPhoto) {
+            anyPatched = true;
+            const origData = doc.data.bind(doc);
+            const patched = () => ({ ...origData(), displayName: bestName || origData().displayName || 'User', photoURL: bestPhoto || origData().photoURL || '' });
+            try { doc.data = patched; } catch(e) { try { Object.defineProperty(doc, 'data', { value: patched, configurable: true }); } catch(e2) {} }
+          }
+          return;
+        }
+
+        const fixedName  = _resolveName(d);
+        const fixedPhoto = _resolvePhoto(d, fixedName, false);
+        const nameOk  = !fixedName  || fixedName  === (d.displayName || '');
+        const photoOk = fixedPhoto === (d.photoURL || '');
+        if (nameOk && photoOk) return;
+        anyPatched = true;
+        const origData = doc.data.bind(doc);
+        const patched = () => ({
+          ...origData(),
+          ...(fixedName  ? { displayName: fixedName }  : {}),
+          ...(fixedPhoto ? { photoURL: fixedPhoto }     : {}),
+        });
+        try { doc.data = patched; } catch(e) { try { Object.defineProperty(doc, 'data', { value: patched, configurable: true }); } catch(e2) {} }
+      });
+
+      return snapshot;
+    } catch(e) { return snapshot; }
+  }
+
+  function _patchSingleDoc(snapshot) {
+    try {
+      if (!snapshot || typeof snapshot.exists === 'undefined' || !snapshot.ref) return snapshot;
+      var path = snapshot.ref.path || '';
+      if (!path.startsWith('players/')) return snapshot;
+      var d = (snapshot.data && snapshot.data()) || {};
+      var uid = path.split('/')[1];
+      var authUser = window.__FIREBASE_USER__ || window.__USER__;
+      if (authUser && authUser.uid === uid) {
+        var customName = d.customName || localStorage.getItem('fas_custom_name') || '';
+          var authName = authUser.displayName && _isResolvedName(authUser.displayName) ? authUser.displayName : null;
+        var authPhoto = authUser.photoURL || '';
+        var fsName = _resolveName(d);
+        var bestName = customName || fsName || authName;
+        var fsPhoto = _resolvePhoto(d, bestName);
+        var bestPhoto = fsPhoto || authPhoto;
+        if (bestName || bestPhoto) {
+          var origData = snapshot.data.bind(snapshot);
+          var patched = function() { var o = origData(); return Object.assign({}, o, { displayName: bestName || o.displayName || 'User', photoURL: bestPhoto || o.photoURL || '' }); };
+          try { snapshot.data = patched; } catch(e) { try { Object.defineProperty(snapshot, 'data', { value: patched, configurable: true }); } catch(e2) {} }
+        }
+      } else {
+        var fixedName = _resolveName(d);
+        var fixedPhoto = _resolvePhoto(d, fixedName, false);
+        var nameOk = !fixedName || fixedName === (d.displayName || '');
+        var photoOk = fixedPhoto === (d.photoURL || '');
+        if (!nameOk || !photoOk) {
+          var origData = snapshot.data.bind(snapshot);
+          var patched = function() { var o = origData(); return Object.assign({}, o, (fixedName ? { displayName: fixedName } : {}), (fixedPhoto ? { photoURL: fixedPhoto } : {})); };
+          try { snapshot.data = patched; } catch(e) { try { Object.defineProperty(snapshot, 'data', { value: patched, configurable: true }); } catch(e2) {} }
+        }
+      }
+      return snapshot;
+    } catch(e) { return snapshot; }
   }
 
   function _installFsGetDocsPatch() {
-    if (window.__fas_fsPatchApplied || !window.fsGetDocs) return false;
-    const _origGetDocs = window.fsGetDocs;
-    window.fsGetDocs = async function (...args) {
-      const result = await _origGetDocs.apply(this, args);
-      return _patchPlayersSnapshot(result);
-    };
+    if (window.__fas_fsPatchApplied) return false;
 
-    // Also patch fsOnSnapshot so the live 'players' listener gets corrected data
-    if (window.fsOnSnapshot && !window.__fas_fsOnSnapPatchApplied) {
+    // fsGetDocs â€” already wrapped by property setter if __fasWrap_fsGetDocs is set
+    if (!window.__fasWrap_fsGetDocs && window.fsGetDocs) {
+      const _origGetDocs = window.fsGetDocs;
+      window.fsGetDocs = async function (...args) {
+        const result = await _origGetDocs.apply(this, args);
+        return _patchPlayersSnapshot(result);
+      };
+      window.__fasWrap_fsGetDocs = true;
+    }
+
+    // fsOnSnapshot â€” only if not already wrapped by property setter
+    if (window.fsOnSnapshot && !window.__fasWrap_fsOnSnap) {
       const _origOnSnap = window.fsOnSnapshot;
       window.fsOnSnapshot = function (ref, callbackOrOptions, ...rest) {
         if (typeof callbackOrOptions !== 'function') {
@@ -989,11 +1703,24 @@
         };
         return _origOnSnap.call(this, ref, wrappedCb, ...rest);
       };
-      window.__fas_fsOnSnapPatchApplied = true;
+      window.__fasWrap_fsOnSnap = true;
     }
 
-    window.__fas_fsPatchApplied = true;
-    return true;
+    // fsGetDoc â€” only if not already wrapped by property setter
+    if (window.fsGetDoc && !window.__fasWrap_fsGetDoc) {
+      const _origGetDoc = window.fsGetDoc;
+      window.fsGetDoc = async function(...args) {
+        const result = await _origGetDoc.apply(this, args);
+        return _patchSingleDoc(result);
+      };
+      window.__fasWrap_fsGetDoc = true;
+    }
+
+    if (window.__fasWrap_fsGetDocs || window.__fasWrap_fsOnSnap || window.__fasWrap_fsGetDoc) {
+      window.__fas_fsPatchApplied = true;
+      return true;
+    }
+    return false;
   }
 
   // Try immediately (React bundle already ran), then poll every 200 ms
@@ -1005,8 +1732,8 @@
     setTimeout(() => clearInterval(_patchPoll), 10000);
   }
 
-  // ── Poll votes preservation patch ──────────────────────────────────
-  // The AdminHub poll-save function always writes  votes:{}  — wiping
+  // â”€â”€ Poll votes preservation patch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // The AdminHub poll-save function always writes  votes:{}  â€” wiping
   // everyone's votes every time the admin edits the poll question or
   // options.  We intercept fsSetDoc on settings/site and restore the
   // existing votes whenever an empty-votes object would overwrite them.
@@ -1016,30 +1743,31 @@
     window.fsSetDoc = async function(ref, data, opts) {
       // Intercept ANY poll write to settings/site and ALWAYS merge with
       // existing Firestore votes.  This fixes two bugs at once:
-      //   1. Admin poll-save resets votes:{} — preserved by merging
-      //   2. Concurrent user votes overwrite each other — fixed by merging
+      //   1. Admin poll-save resets votes:{} â€” preserved by merging
+      //   2. Concurrent user votes overwrite each other â€” fixed by merging
       if (
         ref && typeof ref.path === 'string' &&
         (ref.path === 'settings/site' || ref.path.endsWith('/settings/site')) &&
-        data && data.poll && typeof data.poll.votes === 'object'
+        data && data.poll && typeof data.poll.votes === 'object' &&
+        Object.keys(data.poll.votes).length > 0
       ) {
         try {
           const cur = await window.fsGetDoc(window.fsDoc(window.db, 'settings', 'site'));
           if (cur.exists()) {
             const existingVotes = cur.data()?.poll?.votes || {};
-            // existing first, new on top — new vote for same uid overrides, old votes kept
+            // existing first, new on top â€” new vote for same uid overrides, old votes kept
             const merged = { ...existingVotes, ...data.poll.votes };
             data = { ...data, poll: { ...data.poll, votes: merged } };
-            console.log('[FasahatHub] poll votes merged:', Object.keys(merged).length, 'total');
+            console.log('[Galaxy Annihilating CHS Lab] poll votes merged:', Object.keys(merged).length, 'total');
           }
         } catch (e) {
-          console.warn('[FasahatHub] poll merge error:', e);
+          console.warn('[Galaxy Annihilating CHS Lab] poll merge error:', e);
         }
       }
       return _origSetDoc.call(this, ref, data, opts);
     };
     window.__fas_setDocPollPatchApplied = true;
-    console.log('[FasahatHub] fsSetDoc poll-votes patch applied');
+    console.log('[Galaxy Annihilating CHS Lab] fsSetDoc poll-votes patch applied');
     return true;
   }
 
@@ -1051,20 +1779,28 @@
   }
 
   /* =========================================================
-     DOM PATCHER — Fixes letter avatars & UID names in rendered cards
+     DOM PATCHER â€” Fixes letter avatars & UID names in rendered cards
   ========================================================= */
   let _patchTimer = null;
 
   function scheduleUserCardPatch() {
     clearTimeout(_patchTimer);
-    _patchTimer = setTimeout(patchUserCardsInDOM, 350);
+    _patchTimer = setTimeout(function() { try { patchUserCardsInDOM(); } catch(e) {} }, 350);
   }
 
-  function _makeAvatarImg(url) {
+  function _makeAvatarImg(url, name) {
     const img = document.createElement('img');
-    img.src = url;
+    var _nameForFallback = name || '';
     img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;';
-    img.onerror = () => { img.style.display = 'none'; };
+    if (!url) {
+      url = _generateDefaultAvatar(_nameForFallback);
+    }
+    img.src = url;
+    img.onerror = function() {
+      if (this.src && this.src.indexOf('data:image/svg+xml') === 0) { this.style.display = 'none'; return; }
+      this.src = _generateDefaultAvatar(_nameForFallback);
+      this.onerror = function() { this.style.display = 'none'; };
+    };
     return img;
   }
 
@@ -1079,7 +1815,7 @@
     const cache = window.__fas_usersCache;
     if (!cache || !Object.keys(cache).length) return;
 
-    // ── Pass 1: replace raw UID text with the real display name ─────────────
+    // â”€â”€ Pass 1: replace raw UID text with the real display name â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Any leaf element whose full text content matches a UID in our cache
     // gets swapped to the resolved displayName, and its nearby letter-avatar
     // gets a real profile photo injected.
@@ -1088,7 +1824,7 @@
       const text = (el.textContent || '').trim();
       if (!looksLikeUid(text)) return;               // not a UID-shaped string
       if (el.dataset.fasPatch) return;               // already patched
-      const player = cache[text];                    // ← direct UID key lookup
+      const player = cache[text];                    // â† direct UID key lookup
       if (!player || !player.displayName) return;    // skip if no real name resolved
 
       el.textContent = player.displayName;
@@ -1102,15 +1838,15 @@
         );
         if (avatarEl && !avatarEl.querySelector('img') && !avatarEl.dataset.fasPatch) {
           avatarEl.innerHTML = '';
-          avatarEl.appendChild(_makeAvatarImg(player.photoURL));
+          avatarEl.appendChild(_makeAvatarImg(player.photoURL, player.displayName));
           avatarEl.dataset.fasPatch = '1';
         }
       }
     });
 
-    // ── Pass 2: inject real photos into letter-avatar divs ──────────────────
+    // â”€â”€ Pass 2: inject real photos into letter-avatar divs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Looks for circular divs that still contain a single letter (no <img>).
-    // Resolves the player by reading the nearby name span – which by now may
+    // Resolves the player by reading the nearby name span â€“ which by now may
     // already have been corrected by Pass 1 (real name) or may still be a UID.
     document.querySelectorAll('div[class*="rounded-full"]').forEach(avatarEl => {
       if (avatarEl.dataset.fasPatch) return;
@@ -1118,12 +1854,12 @@
 
       // Must look like a letter-avatar: single text char, no complex children
       const letter = (avatarEl.textContent || '').trim();
-      if (letter.length > 2) return;                // more than 1-2 chars → not a letter avatar
+      if (letter.length > 2) return;                // more than 1-2 chars â†’ not a letter avatar
 
       const row = avatarEl.closest('[class*="flex"][class*="items-center"]') || avatarEl.parentElement;
       if (!row) return;
 
-      // Find the name element – try multiple selector strategies
+      // Find the name element â€“ try multiple selector strategies
       const nameEl =
         row.querySelector('span[class*="truncate"]') ||
         row.querySelector('span[class*="text-xs"]') ||
@@ -1138,28 +1874,42 @@
       const player = _playerFromNameText(cache, nameText);
       if (player?.photoURL) {
         avatarEl.innerHTML = '';
-        avatarEl.appendChild(_makeAvatarImg(player.photoURL));
+        avatarEl.appendChild(_makeAvatarImg(player.photoURL, player.displayName));
         avatarEl.dataset.fasPatch = '1';
       }
     });
 
-    // ── Pass 3: fix <img> tags with empty/missing src in user card rows ──────
+    // â”€â”€ Pass 3: fix <img> tags in user card rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Handles both empty-src images AND images with broken src (expired Google photos).
     document.querySelectorAll('img').forEach(img => {
       if (img.dataset.fasPatch) return;
-      if (img.getAttribute('src')) return;           // already has a source
       const row = img.closest('[class*="flex"][class*="items-center"]');
       if (!row) return;
       const nameEl = row.querySelector('span[class*="truncate"], span[class*="text-xs"], span[class*="text-sm"], span');
       if (!nameEl) return;
       const nameText = (nameEl.textContent || '').trim();
       const player = _playerFromNameText(cache, nameText);
-      if (player?.photoURL) {
-        img.src = player.photoURL;
+      if (!player) return;
+      const pname = player.displayName || player.name || '';
+      if (player.photoURL) {
         img.dataset.fasPatch = '1';
+        if (!img.getAttribute('src')) {
+          img.src = player.photoURL;
+        }
+        // Attach onerror to ALL avatar images â€” catches expired Google photos
+        img.onerror = function() {
+          if (this.src && this.src.indexOf('data:image/svg+xml') === 0) { this.remove(); return; }
+          this.src = _generateDefaultAvatar(pname);
+          this.onerror = function() { this.remove(); };
+        };
+        // Already broken (cached error state) â€” replace immediately
+        if (img.complete && img.naturalWidth === 0) {
+          img.src = _generateDefaultAvatar(pname);
+        }
       }
     });
 
-    // ── Pass 4: inject status badges (ADMIN / PREMIUM / TRIAL) next to names ──
+    // â”€â”€ Pass 4: inject status badges (ADMIN / PREMIUM / TRIAL) next to names â”€â”€
     document.querySelectorAll('span[class*="truncate"], div[class*="truncate"], span[class*="text-xs"], div[class*="text-xs"], span[class*="text-sm"], div[class*="text-sm"], span[class*="text-white"], div[class*="text-white"]').forEach(function(nameEl) {
       if (nameEl.dataset.fasBadge) return;
       var isInAdmin = !!nameEl.closest('[class*="rounded-2xl"]');
@@ -1174,7 +1924,7 @@
       var isPremiumActive = player.premium && (!player.premiumExpiresAt || player.premiumExpiresAt > Date.now());
       var isTrial = player.trial && isPremiumActive;
       var badgeHtml = '';
-      // Skip PREMIUM/ADMIN badges inside React admin panel — it already renders role.
+      // Skip PREMIUM/ADMIN badges inside React admin panel â€” it already renders role.
       // TRIAL always injects since admin panel doesn't show trial status.
       if (role === 'admin' && !isInAdmin) badgeHtml = '<span style="display:inline-flex;align-items:center;gap:2px;font-size:8px;font-weight:700;padding:1px 5px;border-radius:5px;margin-left:4px;background:rgba(99,102,241,.15);color:rgba(165,180,252,.9);border:1px solid rgba(99,102,241,.25);text-transform:uppercase;">ADMIN</span>';
       else if (role === 'premium' && isTrial) badgeHtml = '<span style="display:inline-flex;align-items:center;gap:2px;font-size:8px;font-weight:700;padding:1px 5px;border-radius:5px;margin-left:4px;background:rgba(52,211,153,.12);color:rgba(52,211,153,.85);border:1px solid rgba(52,211,153,.25);text-transform:uppercase;">TRIAL</span>';
@@ -1191,7 +1941,7 @@
   }
 
   /* =========================================================
-     ADMIN BATCH FIX — Repairs all bad player records in Firestore
+     ADMIN BATCH FIX â€” Repairs all bad player records in Firestore
   ========================================================= */
   async function adminBatchFixUsers() {
     const user = window.__FIREBASE_USER__ || window.__USER__;
@@ -1205,7 +1955,7 @@
         const d = docSnap.data() || {};
         const patch = {};
 
-        // Fix displayName — use any valid alternative field if current value is missing/UID-like
+        // Fix displayName â€” use any valid alternative field if current value is missing/UID-like
         const stored = d.displayName || '';
         if (!stored || looksLikeUid(stored)) {
           const fixed =
@@ -1217,7 +1967,7 @@
           if (fixed) patch.displayName = fixed;
         }
 
-        // Fix photoURL — check alternative field names
+        // Fix photoURL â€” check alternative field names
         if (!d.photoURL) {
           const fixed =
             d.photo ||
@@ -1245,11 +1995,106 @@
         // Bust the cache so next render picks up corrected data
         window.__fas_usersCache = null;
         _usersCachePromise = null;
-        console.log('[FasahatHub] Batch-fixed', updates.length, 'player record(s).');
+        console.log('[Galaxy Annihilating CHS Lab] Batch-fixed', updates.length, 'player record(s).');
       }
+
+      // Phase 2: scan DM messages for names of UID-only users
+      try {
+        const snap2 = await window.fsGetDocs(window.fsCollection(window.db, 'players'));
+        const uidOnlyUsers = [];
+        snap2.forEach(docSnap => {
+          const d = docSnap.data() || {};
+          if (!d.displayName || looksLikeUid(d.displayName)) {
+            uidOnlyUsers.push(docSnap.id);
+          }
+        });
+        if (uidOnlyUsers.length > 0) {
+          const uidSet = new Set(uidOnlyUsers);
+          const convSnap = await window.fsGetDocs(window.fsCollection(window.db, 'conversations'));
+          const fixes = {};
+          for (const convDoc of convSnap.docs) {
+            const cd = convDoc.data() || {};
+            const parts = cd.participants || [];
+            if (!parts.some(uid => uidSet.has(uid))) continue;
+            try {
+              const msgSnap = await window.fsGetDocs(
+                window.fsQuery(
+                  window.fsCollection(window.db, 'conversations', convDoc.id, 'messages'),
+                  window.fsOrderBy('createdAt', 'desc')
+                )
+              );
+              var _mc = 0;
+              msgSnap.forEach(mdoc => {
+                if (++_mc > 200) return;
+                const m = mdoc.data() || {};
+                const su = m.senderUid || '';
+                const sn = m.senderName || '';
+                if (su && uidSet.has(su) && sn && !looksLikeUid(sn) && sn !== 'System' && !fixes[su]) {
+                  fixes[su] = { displayName: sn };
+                  if (m.senderPhoto) fixes[su].photoURL = m.senderPhoto;
+                }
+              });
+            } catch(e) {}
+            // Also scan post comments
+            try {
+              const postsSnap = await window.fsGetDocs(
+                window.fsQuery(
+                  window.fsCollection(window.db, 'posts'),
+                  window.fsOrderBy('createdAt', 'desc')
+                )
+              );
+              var _pc = 0;
+              for (const pd of postsSnap.docs) {
+                if (++_pc > 100) break;
+                const pd2 = pd.data() || {};
+                const pu = pd2.authorUid || '';
+                if (pu && uidSet.has(pu) && pd2.authorName && !looksLikeUid(pd2.authorName) && !fixes[pu]) {
+                  fixes[pu] = { displayName: pd2.authorName };
+                  if (pd2.authorPhoto) fixes[pu].photoURL = pd2.authorPhoto;
+                }
+                try {
+                  const cmtSnap = await window.fsGetDocs(
+                    window.fsQuery(
+                      window.fsCollection(window.db, 'posts', pd.id, 'comments')
+                    )
+                  );
+                  cmtSnap.forEach(cd => {
+                    const cm = cd.data() || {};
+                    const cu = cm.authorUid || cm.uid || '';
+                    if (cu && uidSet.has(cu) && !fixes[cu]) {
+                      const cn = cm.authorName || cm.name || '';
+                      if (cn && !looksLikeUid(cn)) {
+                        fixes[cu] = { displayName: cn };
+                        if (cm.authorPhoto || cm.photoURL) fixes[cu].photoURL = cm.authorPhoto || cm.photoURL;
+                      }
+                    }
+                  });
+                } catch(e) {}
+              }
+            } catch(e) {}
+          }
+          // Write fixes to Firestore
+          const fixPromises = Object.keys(fixes).map(uid => {
+            return window.fsSetDoc(
+              window.fsDoc(window.db, 'players', uid),
+              fixes[uid],
+              { merge: true }
+            ).catch(() => {});
+          });
+          if (fixPromises.length > 0) {
+            await Promise.all(fixPromises);
+            window.__fas_usersCache = null;
+            _usersCachePromise = null;
+            console.log('[Galaxy Annihilating CHS Lab] Phase 2: fixed', fixPromises.length, 'UID-only user(s) from messages/posts.');
+          }
+        }
+      } catch(err) {
+        console.warn('[Galaxy Annihilating CHS Lab] Phase 2 error:', err.message);
+      }
+
       return updates.length;
     } catch (err) {
-      console.warn('[FasahatHub] adminBatchFixUsers error:', err.message);
+      console.warn('[Galaxy Annihilating CHS Lab] adminBatchFixUsers error:', err.message);
       return 0;
     }
   }
@@ -1265,12 +2110,12 @@
     _usersCachePromise = (async () => {
       window.__fas_usersCache = {};
 
-      // Wait for Firestore globals (no user check — admin may use different auth)
+      // Wait for Firestore globals (no user check â€” admin may use different auth)
       if (!window.db || !window.fsCollection || !window.fsGetDocs) {
         await new Promise(res => waitForFB(res));
       }
 
-      // Firebase Auth data for whoever is logged in right now — always accurate
+      // Firebase Auth data for whoever is logged in right now â€” always accurate
       const authUser = window.__FIREBASE_USER__ || window.__USER__;
 
       try {
@@ -1284,13 +2129,14 @@
                               d.profilePicture || d.picture || '';
 
           if (authUser && authUser.uid === doc.id) {
-            // Current user: Firebase Auth is the source of truth
+            // Current user: custom name > Firebase Auth > Firestore
+            const customName = d.customName || localStorage.getItem('fas_custom_name') || '';
             const authName = authUser.displayName && !looksLikeUid(authUser.displayName)
               ? authUser.displayName : null;
-            resolvedName  = authName || (!looksLikeUid(rawName) && rawName ? rawName : null);
+            resolvedName  = customName || authName || (!looksLikeUid(rawName) && rawName ? rawName : null);
             resolvedPhoto = authUser.photoURL || resolvedPhoto;
           } else {
-            // Other users: try every Firestore field; NO fake fallback — null means "no data"
+            // Other users: try every Firestore field; NO fake fallback â€” null means "no data"
             resolvedName =
               (!looksLikeUid(rawName) && rawName ? rawName : null) ||
               (d.name     && !looksLikeUid(d.name)     ? d.name     : null) ||
@@ -1299,9 +2145,14 @@
               null;
           }
 
+          // Generate default avatar if no photo found and a name is available
+          if (!resolvedPhoto && resolvedName) {
+            resolvedPhoto = _generateDefaultAvatar(resolvedName);
+          }
+
           window.__fas_usersCache[doc.id] = {
             uid:              doc.id,
-            displayName:      resolvedName,
+            displayName:      resolvedName || ('User ' + doc.id.slice(0, 8)),
             photoURL:         resolvedPhoto,
             email:            d.email || '',
             role:             d.role || '',
@@ -1312,7 +2163,7 @@
         });
       } catch {}
 
-      // ── Posts cross-reference ──────────────────────────────────────────────
+      // â”€â”€ Posts cross-reference â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // For users whose players doc has no name/photo, scan their own posts and
       // use the authorName / authorPhoto that was stored there at post-creation time.
       try {
@@ -1351,7 +2202,129 @@
         }
       } catch {}
 
-      // ── Permanently fix the current user's Firestore document ──────────────
+      // â”€â”€ Cross-reference 2: scan DM messages for senderName â”€â”€
+      try {
+        const missingUids2 = Object.keys(window.__fas_usersCache).filter(uid => {
+          const u = window.__fas_usersCache[uid];
+          return !_isResolvedName(u.displayName);
+        });
+        if (missingUids2.length > 0 && window.fsGetDocs && window.fsCollection && window.db && window.fsQuery && window.fsOrderBy) {
+          const convSnap = await window.fsGetDocs(window.fsCollection(window.db, 'conversations'));
+          const batchSet = new Set(missingUids2);
+          let found = 0;
+          for (const convDoc of convSnap.docs) {
+            if (found >= missingUids2.length) break;
+            const cd = convDoc.data() || {};
+            const parts = cd.participants || [];
+            if (!parts.some(uid => batchSet.has(uid))) continue;
+            try {
+              const msgSnap = await window.fsGetDocs(
+                window.fsQuery(
+                  window.fsCollection(window.db, 'conversations', convDoc.id, 'messages'),
+                  window.fsOrderBy('createdAt', 'desc')
+                )
+              );
+              var _msgCount = 0;
+              msgSnap.forEach(mdoc => {
+                if (++_msgCount > 100) return;
+                const m = mdoc.data() || {};
+                const senderUid = m.senderUid || '';
+                const senderName = m.senderName || '';
+                if (senderUid && batchSet.has(senderUid) && senderName && !looksLikeUid(senderName) && senderName !== 'System') {
+                  const cached = window.__fas_usersCache[senderUid];
+                  if (cached && (!_isResolvedName(cached.displayName))) {
+                    cached.displayName = senderName;
+                    if (m.senderPhoto) cached.photoURL = cached.photoURL || m.senderPhoto;
+                    found++;
+                    batchSet.delete(senderUid);
+                  }
+                }
+              });
+            } catch(e) {}
+          }
+        }
+      } catch {}
+
+      // â”€â”€ Cross-reference 3: scan conversation name_X fields â”€â”€
+      try {
+        const missingUids3 = Object.keys(window.__fas_usersCache).filter(uid => {
+          const u = window.__fas_usersCache[uid];
+          return !_isResolvedName(u.displayName);
+        });
+        if (missingUids3.length > 0 && window.fsGetDocs && window.fsCollection && window.db) {
+          const convSnap2 = await window.fsGetDocs(window.fsCollection(window.db, 'conversations'));
+          convSnap2.forEach(cdoc => {
+            const cd = cdoc.data() || {};
+            const parts = cd.participants || [];
+            parts.forEach(uid => {
+              if (!window.__fas_usersCache[uid]) return;
+              const cached = window.__fas_usersCache[uid];
+              if (_isResolvedName(cached.displayName)) return;
+              Object.keys(cd).forEach(key => {
+                if (key.startsWith('name_') && key.endsWith(uid)) {
+                  const val = cd[key];
+                  if (val && _isResolvedName(val)) cached.displayName = val;
+                }
+                if (key.startsWith('photo_') && key.endsWith(uid)) {
+                  const val = cd[key];
+                  if (val && !cached.photoURL) cached.photoURL = val;
+                }
+              });
+            });
+          });
+        }
+      } catch {}
+
+      // â”€â”€ Cross-reference 4: scan post comments for author names â”€â”€
+      try {
+        const missingUids4 = Object.keys(window.__fas_usersCache).filter(uid => {
+          const u = window.__fas_usersCache[uid];
+          return !_isResolvedName(u.displayName);
+        });
+        if (missingUids4.length > 0 && window.fsGetDocs && window.fsCollection && window.db && window.fsQuery && window.fsOrderBy) {
+          const postsSnap2 = await window.fsGetDocs(
+            window.fsQuery(
+              window.fsCollection(window.db, 'posts'),
+              window.fsOrderBy('createdAt', 'desc')
+            )
+          );
+          var _postCount = 0;
+          for (const pdoc of postsSnap2.docs) {
+            if (++_postCount > 100) break;
+            const pd = pdoc.data() || {};
+            const pUid = pd.authorUid || pd.uid || '';
+            if (pUid && window.__fas_usersCache[pUid]) {
+              const cached = window.__fas_usersCache[pUid];
+              if ((!_isResolvedName(cached.displayName)) && pd.authorName && !looksLikeUid(pd.authorName)) {
+                cached.displayName = pd.authorName;
+                if (pd.authorPhoto) cached.photoURL = cached.photoURL || pd.authorPhoto;
+              }
+            }
+            try {
+              const cmtSnap = await window.fsGetDocs(
+                window.fsQuery(
+                  window.fsCollection(window.db, 'posts', pdoc.id, 'comments')
+                )
+              );
+              cmtSnap.forEach(cdoc => {
+                const cm = cdoc.data() || {};
+                const cmUid = cm.authorUid || cm.uid || cm.userId || '';
+                if (cmUid && window.__fas_usersCache[cmUid]) {
+                  const c = window.__fas_usersCache[cmUid];
+                  if (!_isResolvedName(c.displayName)) {
+                    const nm = cm.authorName || cm.name || cm.userName || '';
+                    if (nm && !looksLikeUid(nm)) c.displayName = nm;
+                    const ph = cm.authorPhoto || cm.photoURL || cm.photo || '';
+                    if (ph && !c.photoURL) c.photoURL = ph;
+                  }
+                }
+              });
+            } catch(e) {}
+          }
+        }
+      } catch {}
+
+      // â”€â”€ Permanently fix the current user's Firestore document â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // Write their real Auth name/photo back so future fetches are clean.
       if (authUser && authUser.uid && window.fsSetDoc && window.fsDoc && window.db) {
         const patch = {};
@@ -1370,14 +2343,30 @@
 
       _usersCachePromise = null;
       return window.__fas_usersCache;
-    })();
+})();
+
     return _usersCachePromise;
   }
+
+  // Periodically refresh users cache so DM search names stay fresh
+  setInterval(function() {
+    if (window.__fas_usersCache) {
+      window.__fas_usersCache = null;
+      _usersCachePromise = null;
+      if (typeof loadUsersCache === 'function') {
+        loadUsersCache().then(function() {
+          if (typeof patchUserCardsInDOM === 'function') patchUserCardsInDOM();
+        });
+      }
+    }
+  }, 60000);
 
   function tryInjectAdmin(root) {
     if (!root.querySelectorAll) return;
 
-    // Exact match only — avoid partial matches on nav links or breadcrumbs
+    // STRICT exact match only — avoid partial matches on nav links, posts, or
+    // breadcrumbs. Loose matching caused false-positive injection on normal
+    // pages (changing layout/logo). The admin panel h1 is exactly "Admin Panel".
     const h1s = root.querySelectorAll('h1');
     let found = null;
     for (const h of h1s) {
@@ -1388,11 +2377,15 @@
     }
     if (!found) return;
 
-    // ── STEP 1: Inject CSS override immediately ────────────────────────────────
+    console.log('[FAS] Admin Panel heading found:', found.tagName, JSON.stringify(found.textContent.trim().substring(0, 50)));
+
+    // — STEP 1: Inject CSS override immediately ———————————————————————
     _injectAdminCss();
 
-    // ── STEP 2: One-shot tool injection ───────────────────────────────────────
-    if (window.__fas_adminInjected) return;
+    // — STEP 2: One-shot tool injection ——————————————————————————————
+    // Do NOT gate on __fas_adminInjected alone: React can rip out our injected
+    // card on a re-render, so re-build whenever the tools node is actually gone.
+    // The outerWrap existence check below prevents duplicates.
 
     const innerCard =
       found.closest('[class*="backdrop-blur"]') ||
@@ -1403,51 +2396,249 @@
 
     const outerWrap = innerCard.parentElement;
     if (!outerWrap) return;
-    if (outerWrap.querySelector('#fas-admin-tools')) return;
+    if (outerWrap.querySelector('#fas-admin-ads')) return;
 
     window.__fas_adminInjected = true;
 
-    // Inject admin tools AFTER the motion.div — never inside it (React would
-    // remove children it doesn't own, potentially restarting the animation).
+    console.log('[FAS] Admin panel Ads manager injected into DOM');
+
+    // Inject Ads manager at the very top of the admin panel, AFTER the motion.div
+    // — never inside it (React would remove children it doesn't own).
     buildAdminToolsPanel(outerWrap, found);
     tryInjectAdminCards(outerWrap);
   }
 
   function buildAdminToolsPanel(container, headingEl) {
-    const card = document.createElement('div');
-    card.id = 'fas-admin-tools';
-    card.style.cssText = `background:rgba(0,0,0,.3);border:1px solid rgba(255,215,0,.15);border-radius:18px;padding:20px;margin-bottom:8px;font-family:Inter,sans-serif;`;
-    card.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,215,0,.8)" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 1 0 4.93 19.07"/><path d="M14 2.46A10 10 0 0 1 21.54 10"/></svg>
-        <span style="font-size:13px;font-weight:800;color:rgba(255,215,0,.85);text-transform:uppercase;letter-spacing:.07em;">Admin Intelligence</span>
-        <span style="margin-left:auto;font-size:10px;color:rgba(255,255,255,.2);background:rgba(255,215,0,.07);padding:2px 8px;border-radius:6px;border:1px solid rgba(255,215,0,.1);">ADMIN ONLY</span>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;" id="fas-atabs">
-          ${[['activity','👤 Activity'],['dm-inspector','💬 DM Inspector'],['all-dms','🌐 All DMs'],['network','🕸 Contact Network'],['premium','👑 Premium']].map(([id,lbl],i)=>`
-          <button class="fas-atab" data-tab="${id}"
-            style="font-size:11px;padding:5px 12px;border-radius:20px;cursor:pointer;border:1px solid ${i===0?'rgba(255,215,0,.5)':'rgba(255,255,255,.1)'};background:${i===0?'rgba(255,215,0,.1)':'transparent'};color:${i===0?'rgba(255,215,0,.9)':'rgba(255,255,255,.4)'};outline:none;transition:all .15s;">${lbl}</button>`).join('')}
-      </div>
-      <div id="fas-atbody" style="min-height:80px;"></div>`;
+    // Top-of-panel Advertisement Manager (replaces old "Admin Intelligence" tabs)
+    buildAdsManager(container);
+  }
 
-    // container is now the INNER admin card — just append the tools panel inside it
+  /* =========================================================
+     ADMIN ADS MANAGER (placed at the very top of the admin panel)
+     4 image slots. Click a slot to pick an image from your
+     computer, then press Save. Ads can be deleted.
+  ========================================================= */
+  function buildAdsManager(container) {
+    var card = document.createElement('div');
+    card.id = 'fas-admin-ads';
+    card.style.cssText =
+      'background:rgba(0,0,0,.45);border:1px solid rgba(255,215,0,.2);border-radius:18px;' +
+      'padding:20px;margin-bottom:16px;font-family:Inter,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.4);';
+
+    var header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:14px;';
+    header.innerHTML =
+      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>' +
+      '<span style="font-size:14px;font-weight:800;color:#fbbf24;text-transform:uppercase;letter-spacing:.06em;">Advertisements</span>' +
+      '<span style="margin-left:auto;font-size:10px;color:rgba(255,255,255,.35);">Show on Home, Movies, TV, Anime, Manga, Posts, Web</span>';
+    card.appendChild(header);
+
+    var grid = document.createElement('div');
+    grid.id = 'fas-admin-ads-grid';
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;';
+    card.appendChild(grid);
+
+    var status = document.createElement('div');
+    status.id = 'fas-admin-ads-status';
+    status.style.cssText = 'font-size:12px;color:rgba(255,255,255,.6);min-height:16px;margin-bottom:12px;text-align:center;';
+    card.appendChild(status);
+
+    var controls = document.createElement('div');
+    controls.style.cssText = 'display:flex;align-items:center;gap:10px;';
+    var saveBtn = document.createElement('button');
+    saveBtn.id = 'fas-admin-ads-save';
+    saveBtn.textContent = 'Save Ads';
+    saveBtn.style.cssText =
+      'background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;border:none;padding:10px 22px;' +
+      'border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;transition:transform .1s,opacity .2s;';
+    saveBtn.onmouseover = function() { saveBtn.style.transform = 'translateY(-1px)'; };
+    saveBtn.onmouseout = function() { saveBtn.style.transform = 'translateY(0)'; };
+    saveBtn.onclick = function() { saveAllAds(); };
+    controls.appendChild(saveBtn);
+
+    var enableBtn = document.createElement('button');
+    enableBtn.id = 'fas-admin-ads-enable';
+    var adsOn = window.__fas_adsEnabled ? window.__fas_adsEnabled() : true;
+    enableBtn.textContent = adsOn ? 'Ads: ON' : 'Ads: OFF';
+    enableBtn.style.cssText =
+      'padding:10px 16px;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;' +
+      'border:1px solid ' + (adsOn ? 'rgba(52,211,153,.4)' : 'rgba(239,68,68,.4)') + ';' +
+      'background:' + (adsOn ? 'rgba(52,211,153,.15)' : 'rgba(239,68,68,.15)') + ';' +
+      'color:' + (adsOn ? '#22c55e' : '#ef4444') + ';';
+    enableBtn.onclick = function() {
+      var next = !(window.__fas_adsEnabled ? window.__fas_adsEnabled() : false);
+      if (window.__fas_setAdsEnabled) window.__fas_setAdsEnabled(next);
+      enableBtn.textContent = next ? 'Ads: ON' : 'Ads: OFF';
+      enableBtn.style.borderColor = next ? 'rgba(52,211,153,.4)' : 'rgba(239,68,68,.4)';
+      enableBtn.style.background = next ? 'rgba(52,211,153,.15)' : 'rgba(239,68,68,.15)';
+      enableBtn.style.color = next ? '#22c55e' : '#ef4444';
+      if (window.__fas_saveAds) window.__fas_saveAds(getAdsState());
+    };
+    controls.appendChild(enableBtn);
+    card.appendChild(controls);
+
+    // ——— Website Click Popup toggle ———
+    var popupRow = document.createElement('div');
+    popupRow.style.cssText = 'margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:10px;';
+    var popupInfo = document.createElement('div');
+    popupInfo.style.cssText = 'flex:1;min-width:0;';
+    popupInfo.innerHTML =
+      '<div style="color:#fff;font-size:13px;font-weight:700;">Website Click Popup</div>' +
+      '<div style="color:rgba(255,255,255,.4);font-size:11px;margin-top:2px;">After a user clicks a website in Web for the 6th time, a popup appears. Close button (top right) shows after 3s, then the counter resets to 0.</div>';
+    var popupBtn = document.createElement('button');
+    var popupOn = window.__fas_popupEnabled ? window.__fas_popupEnabled() : true;
+    popupBtn.id = 'fas-popup-toggle';
+    popupBtn.textContent = popupOn ? 'Popup: ON' : 'Popup: OFF';
+    popupBtn.style.cssText =
+      'padding:10px 16px;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;' +
+      'border:1px solid ' + (popupOn ? 'rgba(52,211,153,.4)' : 'rgba(239,68,68,.4)') + ';' +
+      'background:' + (popupOn ? 'rgba(52,211,153,.15)' : 'rgba(239,68,68,.15)') + ';' +
+      'color:' + (popupOn ? '#22c55e' : '#ef4444') + ';';
+    popupBtn.onclick = function() {
+      var next = !(window.__fas_popupEnabled ? window.__fas_popupEnabled() : false);
+      if (window.__fas_setPopupEnabled) window.__fas_setPopupEnabled(next);
+      popupBtn.textContent = next ? 'Popup: ON' : 'Popup: OFF';
+      popupBtn.style.borderColor = next ? 'rgba(52,211,153,.4)' : 'rgba(239,68,68,.4)';
+      popupBtn.style.background = next ? 'rgba(52,211,153,.15)' : 'rgba(239,68,68,.15)';
+      popupBtn.style.color = next ? '#22c55e' : '#ef4444';
+    };
+    popupRow.appendChild(popupInfo);
+    popupRow.appendChild(popupBtn);
+    card.appendChild(popupRow);
+
     container.appendChild(card);
 
-    let activeAtab = 'activity';
-    card.querySelectorAll('.fas-atab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        activeAtab = btn.dataset.tab;
-        card.querySelectorAll('.fas-atab').forEach(b => {
-          const on = b.dataset.tab === activeAtab;
-          b.style.borderColor = on ? 'rgba(255,215,0,.5)' : 'rgba(255,255,255,.1)';
-          b.style.background = on ? 'rgba(255,215,0,.1)' : 'transparent';
-          b.style.color = on ? 'rgba(255,215,0,.9)' : 'rgba(255,255,255,.4)';
-        });
-        renderAdminTab(activeAtab, card.querySelector('#fas-atbody'));
-      });
-    });
+    // State: array of up to 4 ads { url }
+    var pending = (window.__fas_getAds ? window.__fas_getAds() : []).slice(0, 4);
+    while (pending.length < 4) pending.push({ url: '' });
 
-    renderAdminTab('activity', card.querySelector('#fas-atbody'));
+    function getAdsState() {
+      return pending.filter(function(a) { return a.url; });
+    }
+
+    function renderSlots() {
+      grid.innerHTML = '';
+      pending.forEach(function(ad, i) {
+        var slot = document.createElement('div');
+        slot.style.cssText =
+          'position:relative;border:2px dashed ' + (ad.url ? 'rgba(52,211,153,.4)' : 'rgba(255,255,255,.15)') + ';' +
+          'border-radius:12px;aspect-ratio:1/1;overflow:hidden;cursor:pointer;' +
+          'background:' + (ad.url ? 'rgba(0,0,0,.3)' : 'rgba(255,255,255,.02)') + ';' +
+          'transition:border-color .15s,background .15s;display:flex;align-items:center;justify-content:center;';
+
+        if (ad.url) {
+          var img = document.createElement('img');
+          img.src = ad.url;
+          img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+          img.onerror = function() { img.style.display = 'none'; slot.querySelector('.fas-ad-empty').style.display = 'flex'; };
+          slot.appendChild(img);
+
+          var del = document.createElement('button');
+          del.textContent = '\u00d7';
+          del.style.cssText =
+            'position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;background:rgba(239,68,68,.9);' +
+            'color:#fff;border:none;font-size:15px;font-weight:800;cursor:pointer;' +
+            'display:flex;align-items:center;justify-content:center;z-index:3;';
+          del.onclick = function(ev) {
+            ev.stopPropagation();
+            pending[i] = { url: '' };
+            renderSlots();
+          };
+          slot.appendChild(del);
+
+          var badge = document.createElement('div');
+          badge.textContent = 'Ad ' + (i + 1);
+          badge.style.cssText = 'position:absolute;bottom:4px;left:4px;font-size:9px;color:rgba(255,255,255,.6);background:rgba(0,0,0,.6);padding:2px 6px;border-radius:6px;z-index:3;';
+          slot.appendChild(badge);
+        } else {
+          var empty = document.createElement('div');
+          empty.className = 'fas-ad-empty';
+          empty.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:8px;color:rgba(255,255,255,.4);';
+          empty.innerHTML =
+            '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>' +
+            '<span style="font-size:11px;">Ad ' + (i + 1) + '</span>' +
+            '<span style="font-size:9px;color:rgba(255,255,255,.25);">Click to add image</span>';
+          slot.appendChild(empty);
+        }
+
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.style.display = 'none';
+        slot.appendChild(input);
+
+        slot.addEventListener('click', function() {
+          input.click();
+        });
+        input.addEventListener('change', function() {
+          if (!input.files || !input.files[0]) return;
+          var file = input.files[0];
+          status.textContent = 'Uploading ad ' + (i + 1) + '...';
+          uploadSlot(file, function(url) {
+            pending[i] = { url: url };
+            status.textContent = 'Ad ' + (i + 1) + ' ready — press Save Ads.';
+            renderSlots();
+          }, function(err) {
+            status.textContent = 'Upload failed: ' + (err && err.message ? err.message : String(err));
+          });
+        });
+
+        grid.appendChild(slot);
+      });
+    }
+
+    function uploadSlot(file, onDone, onFail) {
+      // Client-side image compression + base64 data URL.
+      // No Firebase Storage dependency (school proxy sites often block Storage rules).
+      try {
+        var reader = new FileReader();
+        reader.onload = function() {
+          var img = new Image();
+          img.onload = function() {
+            try {
+              // Downscale to max 900px wide to keep the Firestore doc small
+              var maxW = 900;
+              var scale = Math.min(1, maxW / img.width);
+              var w = Math.round(img.width * scale);
+              var h = Math.round(img.height * scale);
+              var canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              var ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#fff';
+              ctx.fillRect(0, 0, w, h);
+              ctx.drawImage(img, 0, 0, w, h);
+              var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+              onDone(dataUrl);
+            } catch(e2) {
+              // Canvas may fail for some formats — fall back to raw data URL
+              onDone(reader.result);
+            }
+          };
+          img.onerror = function() { onDone(reader.result); };
+          img.src = reader.result;
+        };
+        reader.onerror = function(e) { onFail(new Error('Could not read image file')); };
+        reader.readAsDataURL(file);
+      } catch(e) { onFail(e); }
+    }
+
+    function saveAllAds() {
+      var final = pending.filter(function(a) { return a.url; });
+      var todo = final.map(function(a, i) {
+        return { id: Date.now() + '-' + i, url: a.url, link: '', type: 'image' };
+      });
+      if (window.__fas_saveAds) window.__fas_saveAds(todo);
+      // ensure the shorter array length so slots refresh
+      pending = [];
+      todo.forEach(function(a) { pending.push({ url: a.url }); });
+      while (pending.length < 4) pending.push({ url: '' });
+      status.textContent = '\u2713 ' + todo.length + ' ad(s) saved!';
+      renderSlots();
+      setTimeout(function() { status.textContent = ''; }, 3000);
+    }
+
+    renderSlots();
   }
 
   /* --- Feature 3: Activity Timeline --- */
@@ -1457,17 +2648,71 @@
     else if (tab === 'all-dms') renderAllDMs(body);
     else if (tab === 'network') renderContactNetwork(body);
     else if (tab === 'premium') renderPremiumManager(body);
+    else if (tab === 'fix-names') renderFixNames(body);
+    else if (tab === 'ads') {
+      console.log('[FAS] Ads tab clicked, __fas_renderAdTab exists:', !!window.__fas_renderAdTab);
+      if (window.__fas_renderAdTab) window.__fas_renderAdTab(body);
+      else body.innerHTML = '<div style="padding:16px;color:rgba(255,255,255,.4);font-size:12px;">Ad manager not loaded yet. Try refreshing.</div>';
+    }
+  }
+
+  function renderFixNames(body) {
+    body.innerHTML = '<div id="fas-fix-content" style="padding:12px;"><div style="text-align:center;padding:20px;color:rgba(255,255,255,.3);font-size:12px;">Loading user data...</div></div>';
+    waitForFB(async () => {
+      try {
+        await loadUsersCache();
+        const cache = window.__fas_usersCache || {};
+        const all = Object.values(cache);
+        const uidOnly = all.filter(u => !_isResolvedName(u.displayName));
+        const noPhoto = all.filter(u => !u.photoURL);
+        const html = `
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+            <span style="font-size:10px;color:rgba(255,255,255,.3);background:rgba(255,255,255,.04);padding:3px 8px;border-radius:12px;">Total: ${all.length}</span>
+            <span style="font-size:10px;color:rgba(255,100,100,.6);background:rgba(255,100,100,.06);padding:3px 8px;border-radius:12px;">UID-only names: ${uidOnly.length}</span>
+            <span style="font-size:10px;color:rgba(255,200,50,.6);background:rgba(255,200,50,.06);padding:3px 8px;border-radius:12px;">No photo: ${noPhoto.length}</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;padding-right:4px;">
+            ${uidOnly.length === 0 ? '<div style="text-align:center;padding:16px;color:rgba(52,211,153,.5);font-size:11px;">âœ… All users have proper names!</div>' :
+              uidOnly.slice(0, 50).map(u => `
+                <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,100,100,.1);border-radius:10px;">
+                  <div style="width:28px;height:28px;border-radius:50%;background:rgba(255,100,100,.1);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:rgba(255,100,100,.7);flex-shrink:0;">?</div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11px;font-weight:600;color:rgba(255,100,100,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(u.displayName || u.uid)}</div>
+                    <div style="font-size:9px;color:rgba(255,255,255,.3);margin-top:1px;">${esc(u.email || 'No email')}</div>
+                  </div>
+                </div>
+              `).join('')}
+          </div>
+          <button id="fas-fix-run" style="margin-top:12px;width:100%;padding:10px;border-radius:12px;border:1px solid rgba(52,211,153,.3);background:rgba(52,211,153,.1);color:rgba(52,211,153,.9);font-size:12px;font-weight:700;cursor:pointer;transition:background .15s;">ðŸ”§ Run Batch Fix (Scan DMs & Posts)</button>
+          <div id="fas-fix-result" style="margin-top:8px;font-size:11px;color:rgba(255,255,255,.4);text-align:center;"></div>`;
+        body.querySelector('#fas-fix-content').innerHTML = html;
+        body.querySelector('#fas-fix-run').addEventListener('click', async function() {
+          this.disabled = true; this.textContent = 'â³ Scanning...';
+          try {
+            const count = await adminBatchFixUsers();
+            body.querySelector('#fas-fix-result').textContent = 'âœ… Fixed ' + count + ' player(s). Reloading cache...';
+            await loadUsersCache();
+            patchUserCardsInDOM();
+            setTimeout(() => renderFixNames(body), 1500);
+          } catch(e) {
+            body.querySelector('#fas-fix-result').textContent = 'âŒ Error: ' + e.message;
+          }
+        });
+      } catch(err) {
+        body.querySelector('#fas-fix-content').innerHTML = '<div style="text-align:center;padding:16px;color:rgba(255,100,100,.5);font-size:11px;">Error: ' + esc(err.message) + '</div>';
+      }
+    });
   }
 
   /* --- Shared helper: load all conversations (parallel batch queries) --- */
   async function _loadAllConversations() {
-    // Try 1: Direct list — fast if security rules allow
+    // Try 1: Direct list â€” fast if security rules allow
     try {
       var snap = await window.fsGetDocs(window.fsCollection(window.db, 'conversations'));
       var convs = [];
       snap.forEach(function(doc) {
         var d = doc.data() || {};
-        convs.push({ id: doc.id, participants: d.participants || [], names: (d.participants||[]).map(function(uid) { return d['name_'+uid] || uid; }).join(' ↔ '), photos: (d.participants||[]).map(function(uid) { return d['photo_'+uid] || ''; }), lastMessage: d.lastMessage || '', lastTs: d.lastTime?.toDate?.()?.getTime() || d.lastTime || 0 });
+        convs.push({ id: doc.id, participants: d.participants || [], names: (d.participants||[]).map(function(uid) { return d['name_'+uid] || uid; }).join(' â†” '), photos: (d.participants||[]).map(function(uid) { return d['photo_'+uid] || ''; }), lastMessage: d.lastMessage || '', lastTs: d.lastTime?.toDate?.()?.getTime() || d.lastTime || 0 });
       });
       return convs;
     } catch(e) {}
@@ -1490,7 +2735,7 @@
           if (seen[doc.id]) return;
           seen[doc.id] = true;
           var d = doc.data() || {};
-          convs.push({ id: doc.id, participants: d.participants || [], names: (d.participants||[]).map(function(uid) { return d['name_'+uid] || uid; }).join(' ↔ '), photos: (d.participants||[]).map(function(uid) { return d['photo_'+uid] || ''; }), lastMessage: d.lastMessage || '', lastTs: d.lastTime?.toDate?.()?.getTime() || d.lastTime || 0 });
+          convs.push({ id: doc.id, participants: d.participants || [], names: (d.participants||[]).map(function(uid) { return d['name_'+uid] || uid; }).join(' â†” '), photos: (d.participants||[]).map(function(uid) { return d['photo_'+uid] || ''; }), lastMessage: d.lastMessage || '', lastTs: d.lastTime?.toDate?.()?.getTime() || d.lastTime || 0 });
         });
       }).catch(function() {});
     }));
@@ -1500,7 +2745,7 @@
   function renderActivityTimeline(body) {
     body.innerHTML = `
       <div style="display:flex;gap:8px;margin-bottom:12px;">
-        <input id="fas-act-search" type="text" placeholder="Search user by name or UID…"
+        <input id="fas-act-search" type="text" placeholder="Search user by name or UIDâ€¦"
           style="flex:1;padding:8px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-size:12px;outline:none;">
         <button id="fas-act-go" style="padding:8px 14px;background:rgba(255,215,0,.15);border:1px solid rgba(255,215,0,.3);border-radius:10px;color:rgba(255,215,0,.85);font-size:12px;font-weight:600;cursor:pointer;">Search</button>
       </div>
@@ -1509,11 +2754,11 @@
     const go = () => {
       const q = body.querySelector('#fas-act-search').value.trim().toLowerCase();
       if (!q) return;
-      body.querySelector('#fas-act-results').innerHTML = `<div style="text-align:center;padding:20px;color:rgba(255,255,255,.3);font-size:12px;">Loading…</div>`;
+      body.querySelector('#fas-act-results').innerHTML = `<div style="text-align:center;padding:20px;color:rgba(255,255,255,.3);font-size:12px;">Loadingâ€¦</div>`;
       waitForFB(async () => {
         const adminUid = getUid();
         if (!adminUid) {
-          body.querySelector('#fas-act-results').innerHTML = emptyState('🔐', 'Sign in first to use Admin Intelligence.');
+          body.querySelector('#fas-act-results').innerHTML = emptyState('ðŸ”', 'Sign in first to use Admin Intelligence.');
           return;
         }
         try {
@@ -1538,14 +2783,14 @@
           }
 
           if (!matched.length) {
-            body.querySelector('#fas-act-results').innerHTML = emptyState('🔍', 'No users found matching "' + esc(q) + '"');
+            body.querySelector('#fas-act-results').innerHTML = emptyState('ðŸ”', 'No users found matching "' + esc(q) + '"');
             return;
           }
 
           const uid = matched[0].uid;
           const uname = matched[0].displayName;
 
-          // Get posts by this user (no fsOrderBy — sort in JS to avoid index requirement)
+          // Get posts by this user (no fsOrderBy â€” sort in JS to avoid index requirement)
           const postsSnap = await window.fsGetDocs(window.fsCollection(window.db, 'posts'));
           const posts = [];
           postsSnap.forEach(doc => {
@@ -1560,7 +2805,7 @@
           allConvs.forEach(function(c) {
             if (c.participants.indexOf(uid) === -1) return;
             var otherId = c.participants.find(function(p) { return p !== uid; });
-            var nameParts = c.names.split(' ↔ ');
+            var nameParts = c.names.split(' â†” ');
             var otherName = otherId ? (nameParts[0] === (c.participants[0]===uid?c.participants[1]:c.participants[0]) ? (nameParts[1]||nameParts[0]) : nameParts[0]) : 'Unknown';
             convs.push({ id: c.id, otherName: otherName, lastMessage: c.lastMessage, lastTime: c.lastTs });
           });
@@ -1570,7 +2815,7 @@
               ts: p.createdAt?.toDate?.()?.getTime() || p.createdAt || 0,
               type: 'post',
               text: (p.content || '').slice(0, 80),
-              extra: p.imageUrl ? '📷 image attached' : '',
+              extra: p.imageUrl ? 'ðŸ“· image attached' : '',
             })),
             ...convs.map(c => ({
               ts: c.lastTime?.toDate?.()?.getTime() || c.lastTime || 0,
@@ -1581,7 +2826,7 @@
           ].sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 30);
 
           if (!timelineItems.length) {
-            body.querySelector('#fas-act-results').innerHTML = emptyState('📭', `No activity found for ${esc(uname)}`);
+            body.querySelector('#fas-act-results').innerHTML = emptyState('ðŸ“­', `No activity found for ${esc(uname)}`);
             return;
           }
 
@@ -1590,7 +2835,7 @@
               <div style="width:30px;height:30px;border-radius:50%;background:rgba(255,215,0,.12);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:rgba(255,215,0,.8);">${esc(uname[0]?.toUpperCase()||'?')}</div>
               <div>
                 <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.8);">${esc(uname)}</div>
-                <div style="font-size:10px;color:rgba(255,255,255,.3);">${posts.length} posts · ${convs.length} DM threads</div>
+                <div style="font-size:10px;color:rgba(255,255,255,.3);">${posts.length} posts Â· ${convs.length} DM threads</div>
               </div>
             </div>
             <div style="position:relative;padding-left:20px;">
@@ -1600,8 +2845,8 @@
                   <div style="position:absolute;left:-16px;top:50%;transform:translateY(-50%);width:7px;height:7px;border-radius:50%;background:${item.type==='post'?'rgba(99,102,241,.8)':'rgba(16,185,129,.8)'};"></div>
                   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
                     <div>
-                      <div style="font-size:10px;font-weight:600;color:${item.type==='post'?'rgba(165,180,252,.8)':'rgba(52,211,153,.8)'};text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">${item.type==='post'?'📝 Post':'💬 DM'}</div>
-                      <div style="font-size:11px;color:rgba(255,255,255,.65);line-height:1.4;">${item.text||'—'}</div>
+                      <div style="font-size:10px;font-weight:600;color:${item.type==='post'?'rgba(165,180,252,.8)':'rgba(52,211,153,.8)'};text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">${item.type==='post'?'ðŸ“ Post':'ðŸ’¬ DM'}</div>
+                      <div style="font-size:11px;color:rgba(255,255,255,.65);line-height:1.4;">${item.text||'â€”'}</div>
                       ${item.extra ? `<div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:2px;">${item.extra}</div>` : ''}
                     </div>
                     <div style="font-size:9px;color:rgba(255,255,255,.25);white-space:nowrap;flex-shrink:0;">${fmtTime(item.ts)}</div>
@@ -1620,7 +2865,7 @@
 
   /* --- Feature 4: DM Conversation Inspector with search (newest first) --- */
   function renderDMInspector(body) {
-    body.innerHTML = `<div style="text-align:center;padding:20px;color:rgba(255,255,255,.3);font-size:12px;">Loading conversations…</div>`;
+    body.innerHTML = `<div style="text-align:center;padding:20px;color:rgba(255,255,255,.3);font-size:12px;">Loading conversationsâ€¦</div>`;
     waitForFB(async () => {
       try {
         var convsAll = await _loadAllConversations();
@@ -1631,7 +2876,7 @@
           var convs = q ? convsAll.filter(function(c) { return c.names.toLowerCase().includes(q) || (c.lastMessage||'').toLowerCase().includes(q); }) : convsAll;
           var html = '';
           if (!convs.length) {
-            html = emptyState('💬', q ? 'No conversations match "' + esc(q) + '"' : 'No DM conversations found.');
+            html = emptyState('ðŸ’¬', q ? 'No conversations match "' + esc(q) + '"' : 'No DM conversations found.');
           } else {
             html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><div style="font-size:10px;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.05em;">' + convs.length + ' of ' + convsAll.length + ' conversations</div><div style="font-size:10px;color:rgba(255,215,0,.5);">Newest first</div></div><div style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;padding-right:4px;" id="fas-dm-list">' + convs.map(function(c,i) {
               return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:11px;cursor:pointer;transition:background .15s;" class="fas-dm-row" data-idx="' + i + '"><div style="display:flex;flex-shrink:0;">' + (c.photos.slice(0,2).map(function(ph,pi) { return ph ? '<img src="' + esc(ph) + '" loading="lazy" style="width:26px;height:26px;border-radius:50%;object-fit:cover;margin-left:' + (pi>0?'-8px':'0') + ';border:1.5px solid rgba(0,0,0,.6);">' : '<div style="width:26px;height:26px;border-radius:50%;background:rgba(255,215,0,.1);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:rgba(255,215,0,.7);margin-left:' + (pi>0?'-8px':'0') + ';border:1.5px solid rgba(0,0,0,.6);">' + esc((c.names||'?')[pi*4]||'?') + '</div>'; }).join('')) + '</div><div style="flex:1;min-width:0;"><div style="font-size:11px;font-weight:600;color:rgba(255,255,255,.75);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(c.names) + '</div><div style="font-size:10px;color:rgba(255,255,255,.3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;">' + esc((c.lastMessage||'').slice(0,60)||'No messages') + '</div></div><div style="font-size:9px;color:rgba(255,255,255,.2);white-space:nowrap;flex-shrink:0;">' + fmtTime(c.lastTs) + '</div></div>';
@@ -1650,7 +2895,7 @@
           });
         };
 
-        body.innerHTML = '<div style="display:flex;gap:6px;margin-bottom:8px;"><input id="fas-dm-search" type="text" placeholder="Filter by name or message…" style="flex:1;padding:7px 10px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#fff;font-size:11px;outline:none;"><button id="fas-dm-search-btn" style="padding:7px 12px;background:rgba(255,215,0,.12);border:1px solid rgba(255,215,0,.25);border-radius:8px;color:rgba(255,215,0,.8);font-size:11px;font-weight:600;cursor:pointer;">Search</button></div><div id="fas-dm-content"></div>';
+        body.innerHTML = '<div style="display:flex;gap:6px;margin-bottom:8px;"><input id="fas-dm-search" type="text" placeholder="Filter by name or messageâ€¦" style="flex:1;padding:7px 10px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#fff;font-size:11px;outline:none;"><button id="fas-dm-search-btn" style="padding:7px 12px;background:rgba(255,215,0,.12);border:1px solid rgba(255,215,0,.25);border-radius:8px;color:rgba(255,215,0,.8);font-size:11px;font-weight:600;cursor:pointer;">Search</button></div><div id="fas-dm-content"></div>';
         renderList('');
         body.querySelector('#fas-dm-search-btn').addEventListener('click', function() { renderList(body.querySelector('#fas-dm-search').value); });
         body.querySelector('#fas-dm-search').addEventListener('keyup', function(e) { if (e.key === 'Enter') renderList(this.value); });
@@ -1663,10 +2908,10 @@
   function expandDMConversation(body, conv, allConvs, onBack) {
     body.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-        <button id="fas-dm-back" style="padding:5px 10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:rgba(255,255,255,.5);font-size:11px;cursor:pointer;">← Back</button>
+        <button id="fas-dm-back" style="padding:5px 10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:rgba(255,255,255,.5);font-size:11px;cursor:pointer;">â† Back</button>
         <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.7);">${esc(conv.names)}</div>
       </div>
-      <div id="fas-dm-msgs" style="text-align:center;padding:20px;color:rgba(255,255,255,.3);font-size:12px;">Loading messages…</div>`;
+      <div id="fas-dm-msgs" style="text-align:center;padding:20px;color:rgba(255,255,255,.3);font-size:12px;">Loading messagesâ€¦</div>`;
 
     body.querySelector('#fas-dm-back').addEventListener('click', function() { (onBack || renderDMInspector)(body); });
 
@@ -1683,7 +2928,7 @@
 
         const msgsEl = body.querySelector('#fas-dm-msgs');
         if (!msgs.length) {
-          msgsEl.innerHTML = emptyState('📭', 'No messages in this conversation.');
+          msgsEl.innerHTML = emptyState('ðŸ“­', 'No messages in this conversation.');
           return;
         }
         msgsEl.innerHTML = `
@@ -1706,10 +2951,10 @@
 
   /* --- All DMs: Global conversation viewer --- */
   function renderAllDMs(body) {
-    body.innerHTML = '<div style="text-align:center;padding:20px;color:rgba(255,255,255,.3);font-size:12px;">Loading all conversations…</div>';
+    body.innerHTML = '<div style="text-align:center;padding:20px;color:rgba(255,255,255,.3);font-size:12px;">Loading all conversationsâ€¦</div>';
     waitForFB(async () => {
       var adminUid = getUid();
-      if (!adminUid) { body.innerHTML = emptyState('🔐', 'Sign in to view all DMs.'); return; }
+      if (!adminUid) { body.innerHTML = emptyState('ðŸ”', 'Sign in to view all DMs.'); return; }
       try {
         var convsAll = await _loadAllConversations();
         convsAll.sort(function(a,b) { return (b.lastTs||0) - (a.lastTs||0); });
@@ -1720,7 +2965,7 @@
           var parts = convs.length + ' of ' + convsAll.length + ' conversations';
           var html = '';
           if (!convs.length) {
-            html = q ? emptyState('💬', 'No conversations match "' + esc(q) + '"') : emptyState('💬', 'No conversations found.');
+            html = q ? emptyState('ðŸ’¬', 'No conversations match "' + esc(q) + '"') : emptyState('ðŸ’¬', 'No conversations found.');
           } else {
             html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><div style="font-size:10px;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.05em;">' + parts + '</div><div style="font-size:10px;color:rgba(255,215,0,.5);">Newest first</div></div><div style="display:flex;flex-direction:column;gap:5px;max-height:280px;overflow-y:auto;padding-right:4px;" id="fas-dm-list">' + convs.map(function(c,i) {
               var partCount = c.participants.length;
@@ -1742,7 +2987,7 @@
           });
         };
 
-        body.innerHTML = '<div style="margin-bottom:6px;font-size:10px;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:.05em;">Global DM Viewer</div><div style="display:flex;gap:6px;margin-bottom:8px;"><input id="fas-adm-search" type="text" placeholder="Search all conversations…" style="flex:1;padding:7px 10px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#fff;font-size:11px;outline:none;"><button id="fas-adm-search-btn" style="padding:7px 12px;background:rgba(255,215,0,.12);border:1px solid rgba(255,215,0,.25);border-radius:8px;color:rgba(255,215,0,.8);font-size:11px;font-weight:600;cursor:pointer;">Search</button></div><div id="fas-adm-content"></div>';
+        body.innerHTML = '<div style="margin-bottom:6px;font-size:10px;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:.05em;">Global DM Viewer</div><div style="display:flex;gap:6px;margin-bottom:8px;"><input id="fas-adm-search" type="text" placeholder="Search all conversationsâ€¦" style="flex:1;padding:7px 10px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#fff;font-size:11px;outline:none;"><button id="fas-adm-search-btn" style="padding:7px 12px;background:rgba(255,215,0,.12);border:1px solid rgba(255,215,0,.25);border-radius:8px;color:rgba(255,215,0,.8);font-size:11px;font-weight:600;cursor:pointer;">Search</button></div><div id="fas-adm-content"></div>';
         renderList('');
         body.querySelector('#fas-adm-search-btn').addEventListener('click', function() { renderList(body.querySelector('#fas-adm-search').value); });
         body.querySelector('#fas-adm-search').addEventListener('keyup', function(e) { if (e.key === 'Enter') renderList(this.value); });
@@ -1754,7 +2999,7 @@
 
   /* --- Feature 16: DM Contact Network --- */
   function renderContactNetwork(body) {
-    body.innerHTML = `<div style="text-align:center;padding:20px;color:rgba(255,255,255,.3);font-size:12px;">Building contact network…</div>`;
+    body.innerHTML = `<div style="text-align:center;padding:20px;color:rgba(255,255,255,.3);font-size:12px;">Building contact networkâ€¦</div>`;
     waitForFB(async () => {
       try {
         var convs = await _loadAllConversations();
@@ -1767,7 +3012,7 @@
         convs.forEach(c => {
           const [a, b] = c.participants || [];
           if (!a || !b) return;
-          var nameParts = c.names.split(' ↔ ');
+          var nameParts = c.names.split(' â†” ');
           const nameA = cache[a]?.displayName || nameParts[0] || a.slice(0,8);
           const nameB = cache[b]?.displayName || nameParts[1] || b.slice(0,8);
           nodeSet.add(a);
@@ -1787,7 +3032,7 @@
           .slice(0, 8);
 
         if (!edges.length) {
-          body.innerHTML = emptyState('🕸', 'No DM connections found.');
+          body.innerHTML = emptyState('ðŸ•¸', 'No DM connections found.');
           return;
         }
 
@@ -1809,7 +3054,7 @@
               <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.04);border-radius:9px;">
                 <div style="display:flex;align-items:center;gap:5px;flex:1;min-width:0;">
                   <span style="font-size:11px;color:rgba(255,255,255,.65);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px;">${esc(edge.nameA)}</span>
-                  <span style="font-size:12px;color:rgba(255,215,0,.4);">↔</span>
+                  <span style="font-size:12px;color:rgba(255,215,0,.4);">â†”</span>
                   <span style="font-size:11px;color:rgba(255,255,255,.65);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px;">${esc(edge.nameB)}</span>
                 </div>
                 <div style="flex-shrink:0;text-align:right;">
@@ -1837,12 +3082,12 @@
 
       var html = '';
       if (!list.length) {
-        html = emptyState('👑', q ? 'No users match "' + esc(q) + '"' : 'Loading user data…');
+        html = emptyState('ðŸ‘‘', q ? 'No users match "' + esc(q) + '"' : 'Loading user dataâ€¦');
       } else {
         html = '<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;"><span style="font-size:10px;color:rgba(255,255,255,.3);background:rgba(255,255,255,.04);padding:3px 8px;border-radius:12px;">All: ' + list.length + '</span><span style="font-size:10px;color:rgba(52,211,153,.6);background:rgba(52,211,153,.06);padding:3px 8px;border-radius:12px;">Premium: ' + premiumUsers.length + '</span><span style="font-size:10px;color:rgba(52,211,153,.6);background:rgba(52,211,153,.06);padding:3px 8px;border-radius:12px;">Trial: ' + trialUsers.length + '</span><span style="font-size:10px;color:rgba(255,100,100,.5);background:rgba(255,100,100,.06);padding:3px 8px;border-radius:12px;">Expired: ' + expiredUsers.length + '</span></div>';
         html += '<div style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;padding-right:4px;">' + list.map(function(u) {
           var statusColor = u.premium && (!u.expiresAt || u.expiresAt > Date.now()) ? (u.trial ? 'rgba(52,211,153,0.8)' : 'rgba(255,215,0,0.8)') : (u.expiresAt && u.expiresAt <= Date.now() ? 'rgba(255,100,100,0.4)' : 'rgba(255,255,255,.25)');
-          var statusText = u.premium && (!u.expiresAt || u.expiresAt > Date.now()) ? (u.expiresAt ? 'Expires ' + new Date(u.expiresAt).toLocaleDateString() : 'Permanent') : (u.expiresAt && u.expiresAt <= Date.now() ? 'Expired' : '—');
+          var statusText = u.premium && (!u.expiresAt || u.expiresAt > Date.now()) ? (u.expiresAt ? 'Expires ' + new Date(u.expiresAt).toLocaleDateString() : 'Permanent') : (u.expiresAt && u.expiresAt <= Date.now() ? 'Expired' : 'â€”');
           var badge = u.trial ? '<span style="font-size:8px;background:rgba(52,211,153,.15);color:rgba(52,211,153,.85);padding:1px 5px;border-radius:5px;margin-left:4px;">TRIAL</span>' : (u.premium && (!u.expiresAt || u.expiresAt > Date.now()) ? '<span style="font-size:8px;background:rgba(255,215,0,.12);color:rgba(255,215,0,.75);padding:1px 5px;border-radius:5px;margin-left:4px;">PREMIUM</span>' : '');
           var daysLeft = u.expiresAt ? Math.ceil((u.expiresAt - Date.now()) / 86400000) : '';
           var daysStr = daysLeft > 0 ? ' (' + daysLeft + 'd)' : '';
@@ -1863,7 +3108,7 @@
           else { data = { premium: false, trial: false, role: '', premiumExpiresAt: null }; }
           this.textContent = '...';
           window.fsSetDoc(window.fsDoc(window.db, 'players', uid), data, { merge: true }).then(function() {
-            btn.textContent = '✓';
+            btn.textContent = 'âœ“';
             // Update cache in-memory so badges appear immediately
             if (window.__fas_usersCache && window.__fas_usersCache[uid]) {
               window.__fas_usersCache[uid].role = data.role || '';
@@ -1876,13 +3121,13 @@
               // Rebuild list
               loadAllPlayers(body, body.querySelector('#fas-prem-search').value, render);
             }, 1000);
-          }).catch(function() { btn.textContent = '✗'; });
+          }).catch(function() { btn.textContent = 'âœ—'; });
         });
       });
     };
 
     var loadAllPlayers = function(body, searchVal, cb) {
-      body.querySelector('#fas-prem-content').innerHTML = '<div style="text-align:center;padding:20px;color:rgba(255,255,255,.3);font-size:12px;">Loading users…</div>';
+      body.querySelector('#fas-prem-content').innerHTML = '<div style="text-align:center;padding:20px;color:rgba(255,255,255,.3);font-size:12px;">Loading usersâ€¦</div>';
       waitForFB(async function() {
         try {
           var usersMap = {};
@@ -1902,8 +3147,14 @@
             var snap = await window.fsGetDocs(window.fsCollection(window.db, 'players'));
             snap.forEach(function(doc) {
               var d = doc.data() || {};
+              var rawName = d.displayName || '';
+              var resolvedName = (!looksLikeUid(rawName) && rawName ? rawName : null)
+                || (d.name && !looksLikeUid(d.name) ? d.name : null)
+                || (d.username && !looksLikeUid(d.username) ? d.username : null)
+                || (d.email ? d.email.split('@')[0] : null)
+                || doc.id.slice(0,8);
               usersMap[doc.id] = {
-                name: d.displayName || d.name || d.username || d.email || doc.id.slice(0,8),
+                name: resolvedName,
                 email: d.email || '',
                 uid: doc.id,
                 premium: !!d.premium || d.role === 'premium',
@@ -1920,7 +3171,7 @@
               usersMap[uid].trial = !!d.trial;
               usersMap[uid].expiresAt = d.premiumExpiresAt || 0;
             }).catch(function() {
-              // Individual read failed — cache data already set above, keep it
+              // Individual read failed â€” cache data already set above, keep it
             });
           }));
           allUsers = Object.values(usersMap);
@@ -1937,7 +3188,7 @@
       });
     };
 
-    body.innerHTML = '<div style="display:flex;gap:8px;margin-bottom:6px;"><input id="fas-prem-search" type="text" placeholder="Search users…" style="flex:1;padding:8px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-size:12px;outline:none;"><button id="fas-prem-go" style="padding:8px 14px;background:rgba(255,215,0,.15);border:1px solid rgba(255,215,0,.3);border-radius:10px;color:rgba(255,215,0,.85);font-size:12px;font-weight:600;cursor:pointer;">Search</button></div><div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;"><span style="font-size:10px;color:rgba(255,255,255,.3);">Custom duration:</span><input id="fas-prem-defdays" type="number" min="1" value="21" style="width:45px;padding:4px 5px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#fff;font-size:11px;text-align:center;outline:none;"><span style="font-size:10px;color:rgba(255,255,255,.2);">days</span></div><div id="fas-prem-content"><div style="text-align:center;padding:20px;color:rgba(255,255,255,.25);font-size:12px;">Loading user data…</div></div>';
+    body.innerHTML = '<div style="display:flex;gap:8px;margin-bottom:6px;"><input id="fas-prem-search" type="text" placeholder="Search usersâ€¦" style="flex:1;padding:8px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-size:12px;outline:none;"><button id="fas-prem-go" style="padding:8px 14px;background:rgba(255,215,0,.15);border:1px solid rgba(255,215,0,.3);border-radius:10px;color:rgba(255,215,0,.85);font-size:12px;font-weight:600;cursor:pointer;">Search</button></div><div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;"><span style="font-size:10px;color:rgba(255,255,255,.3);">Custom duration:</span><input id="fas-prem-defdays" type="number" min="1" value="21" style="width:45px;padding:4px 5px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#fff;font-size:11px;text-align:center;outline:none;"><span style="font-size:10px;color:rgba(255,255,255,.2);">days</span></div><div id="fas-prem-content"><div style="text-align:center;padding:20px;color:rgba(255,255,255,.25);font-size:12px;">Loading user dataâ€¦</div></div>';
 
     loadAllPlayers(body, '', render);
 
@@ -1946,7 +3197,7 @@
   }
 
   /* =========================================================
-     7.  HOMEPAGE — TOP ACTIVE USERS  (Feature 15)
+     7.  HOMEPAGE â€” TOP ACTIVE USERS  (Feature 15)
   ========================================================= */
   let _homepageInjected = false;
 
@@ -1958,7 +3209,7 @@
     if (path !== '/' && !path.endsWith('/index.html') && path !== '') return;
     const h2s = document.querySelectorAll('h2');
     if (h2s.length < 2) return;
-    // Find a good insertion point — after the first shelf/section
+    // Find a good insertion point â€” after the first shelf/section
     const mainContent = document.querySelector('[class*="max-w-7xl"]') || document.querySelector('[class*="max-w-6xl"]') || document.querySelector('main');
     if (!mainContent) return;
     // Find first inner section to insert after
@@ -1981,7 +3232,7 @@
         <span style="font-size:10px;color:rgba(255,255,255,.2);">by posts</span>
       </div>
       <div id="fas-tu-list" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;">
-        <div style="padding:16px;color:rgba(255,255,255,.25);font-size:12px;">Loading…</div>
+        <div style="padding:16px;color:rgba(255,255,255,.25);font-size:12px;">Loadingâ€¦</div>
       </div>`;
 
     afterEl.parentElement?.insertBefore(section, afterEl.nextSibling) || afterEl.parentElement?.appendChild(section);
@@ -2034,7 +3285,7 @@
           list.innerHTML = ranked.map((u, i) => `
             <div style="flex-shrink:0;width:100px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 10px;text-align:center;position:relative;transition:border-color .2s;cursor:default;"
               onmouseenter="this.style.borderColor='rgba(255,215,0,.2)'" onmouseleave="this.style.borderColor='rgba(255,255,255,.07)'">
-              ${i === 0 ? `<div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:14px;">👑</div>` : ''}
+              ${i === 0 ? `<div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:14px;">ðŸ‘‘</div>` : ''}
               ${u.photo
                 ? `<img src="${esc(u.photo)}" loading="lazy" style="width:44px;height:44px;border-radius:50%;object-fit:cover;margin:4px auto 8px;border:2px solid ${i===0?'rgba(255,215,0,.5)':i===1?'rgba(192,192,192,.4)':i===2?'rgba(205,127,50,.4)':'rgba(255,255,255,.1)'};display:block;">`
                 : `<div style="width:44px;height:44px;border-radius:50%;background:rgba(255,215,0,.1);margin:4px auto 8px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:rgba(255,215,0,.7);border:2px solid rgba(255,215,0,.15);">${esc(u.name[0]?.toUpperCase()||'?')}</div>`}
@@ -2052,7 +3303,7 @@
   }
 
   /* =========================================================
-     9.  ADMIN — MAINTENANCE MODE  (Feature 7)
+     9.  ADMIN â€” MAINTENANCE MODE  (Feature 7)
   ========================================================= */
   let _maintenanceOn = false;
 
@@ -2079,7 +3330,7 @@
       <div id="fas-maint-msg-section" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06);">
         <label style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px;">Custom message (optional)</label>
         <div style="display:flex;gap:8px;">
-          <input id="fas-maint-custom" type="text" placeholder="e.g. Back online at 3PM — upgrading servers"
+          <input id="fas-maint-custom" type="text" placeholder="e.g. Back online at 3PM â€” upgrading servers"
             style="flex:1;padding:8px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-size:12px;outline:none;">
           <button id="fas-maint-save-msg" style="padding:8px 14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:rgba(255,255,255,.5);font-size:11px;font-weight:600;cursor:pointer;">Save</button>
         </div>
@@ -2112,12 +3363,12 @@
           { merge: true }
         );
         const msg = card.querySelector('#fas-maint-msg');
-        msg.textContent = _maintenanceOn ? '✓ Maintenance enabled' : '✓ Site back online';
+        msg.textContent = _maintenanceOn ? 'âœ“ Maintenance enabled' : 'âœ“ Site back online';
         msg.style.color = _maintenanceOn ? 'rgba(255,120,60,.8)' : 'rgba(100,220,100,.8)';
         setTimeout(() => { msg.textContent = ''; }, 3000);
       } catch (e) {
         const msg = card.querySelector('#fas-maint-msg');
-        msg.textContent = '✗ ' + (e.message || 'Failed');
+        msg.textContent = 'âœ— ' + (e.message || 'Failed');
         msg.style.color = 'rgba(255,100,100,.7)';
       }
     });
@@ -2128,7 +3379,7 @@
       try {
         await window.fsSetDoc(window.fsDoc(window.db, 'settings', 'site'), { maintenanceMsg: customMsg }, { merge: true });
         const msg = card.querySelector('#fas-maint-msg');
-        msg.textContent = '✓ Message saved';
+        msg.textContent = 'âœ“ Message saved';
         msg.style.color = 'rgba(100,220,100,.8)';
         setTimeout(() => { msg.textContent = ''; }, 2500);
       } catch {}
@@ -2216,7 +3467,7 @@
   }
 
   function checkMaintenanceMode() {
-    // ── Immediate admin escape hatches (no Firestore read needed) ──────
+    // â”€â”€ Immediate admin escape hatches (no Firestore read needed) â”€â”€â”€â”€â”€â”€
     // 1. Skip if admin panel is currently visible in the DOM
     if (_isAdminActive()) return;
     // 2. Skip if URL contains "admin" (fallback for URL-based routing)
@@ -2224,7 +3475,7 @@
     // 3. Skip if Firebase has stored admin auth in localStorage
     if (_isAdminFromStorage()) return;
 
-    // ── Wait for Firebase + auth to fully resolve ──────────────────────
+    // â”€â”€ Wait for Firebase + auth to fully resolve â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let _attempts = 0;
     const _poll = setInterval(async () => {
       _attempts++;
@@ -2234,7 +3485,7 @@
       const authKnown = window.__FIREBASE_USER__ !== undefined;
 
       if (!fbReady) return;
-      // Give auth up to 15 seconds — Firebase is fast but can be slow on
+      // Give auth up to 15 seconds â€” Firebase is fast but can be slow on
       // first visit or poor connections.
       if (!authKnown && _attempts < 75) return;
 
@@ -2249,7 +3500,7 @@
         const siteData = doc.data() || {};
         if (!siteData.maintenanceMode) return;
 
-        // Final check — admin never sees the overlay
+        // Final check â€” admin never sees the overlay
         if (_isAdmin() || _isAdminFromStorage()) return;
 
         if (document.getElementById('fas-maint-overlay')) return;
@@ -2259,15 +3510,15 @@
         ov.innerHTML = `
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="rgba(255,120,60,.6)" stroke-width="1.5" style="margin-bottom:28px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
           <div style="font-size:32px;font-weight:900;color:#fff;text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;">Under Maintenance</div>
-          <div style="font-size:15px;color:rgba(255,255,255,.45);max-width:420px;line-height:1.6;margin-bottom:28px;">${siteData.maintenanceMsg ? esc(siteData.maintenanceMsg) : 'FasahatHub is currently undergoing maintenance. We\'ll be back shortly!'}</div>
-          <div style="font-size:12px;color:rgba(255,120,60,.5);border:1px solid rgba(255,120,60,.2);padding:8px 20px;border-radius:20px;">🔧 Maintenance in progress</div>
+          <div style="font-size:15px;color:rgba(255,255,255,.45);max-width:420px;line-height:1.6;margin-bottom:28px;">${siteData.maintenanceMsg ? esc(siteData.maintenanceMsg) : 'Galaxy Annihilating CHS Ballistic Missile is currently undergoing maintenance. We\'ll be back shortly!'}</div>
+          <div style="font-size:12px;color:rgba(255,120,60,.5);border:1px solid rgba(255,120,60,.2);padding:8px 20px;border-radius:20px;">ðŸ”§ Maintenance in progress</div>
           <button onclick="window.firebaseSignIn&&window.firebaseSignIn()"
             style="margin-top:24px;padding:10px 24px;background:rgba(255,120,60,.18);border:1.5px solid rgba(255,120,60,.4);border-radius:12px;color:rgba(255,120,60,.9);font-size:13px;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;">
             Admin Sign In
           </button>`;
         document.body.appendChild(ov);
 
-        // Persistently watch — remove overlay the moment admin auth OR admin panel is visible
+        // Persistently watch â€” remove overlay the moment admin auth OR admin panel is visible
         const _watch = setInterval(() => {
           if (_isAdmin() || _isAdminFromStorage() || _isAdminUrl() || _isAdminActive()) {
             clearInterval(_watch);
@@ -2282,7 +3533,7 @@
   }
 
   /* =========================================================
-     10.  ADMIN — FEEDBACK / FEATURE SUGGESTIONS VIEWER
+     10.  ADMIN â€” FEEDBACK / FEATURE SUGGESTIONS VIEWER
   ========================================================= */
   function buildFeedbackViewer(container) {
     if (container.querySelector('#fas-feedback-card')) return;
@@ -2302,11 +3553,11 @@
             <option value="done">Done</option>
             <option value="dismissed">Dismissed</option>
           </select>
-          <button id="fas-fb-reload" style="padding:5px 12px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);border-radius:8px;color:rgba(165,180,252,.8);font-size:11px;font-weight:600;cursor:pointer;">↺ Refresh</button>
+          <button id="fas-fb-reload" style="padding:5px 12px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);border-radius:8px;color:rgba(165,180,252,.8);font-size:11px;font-weight:600;cursor:pointer;">â†º Refresh</button>
         </div>
       </div>
       <div id="fas-fb-body" style="min-height:60px;">
-        <div style="text-align:center;padding:20px;color:rgba(255,255,255,.2);font-size:12px;">Loading feedback…</div>
+        <div style="text-align:center;padding:20px;color:rgba(255,255,255,.2);font-size:12px;">Loading feedbackâ€¦</div>
       </div>`;
     container.appendChild(card);
     loadFeedback(card);
@@ -2318,10 +3569,10 @@
 
   function loadFeedback(card) {
     const body = card.querySelector('#fas-fb-body');
-    body.innerHTML = `<div style="text-align:center;padding:20px;color:rgba(255,255,255,.2);font-size:12px;">Loading…</div>`;
+    body.innerHTML = `<div style="text-align:center;padding:20px;color:rgba(255,255,255,.2);font-size:12px;">Loadingâ€¦</div>`;
     waitForFB(async () => {
       const uid = getUid();
-      if (!uid) { body.innerHTML = emptyState('🔐', 'Sign in to view feedback.'); return; }
+      if (!uid) { body.innerHTML = emptyState('ðŸ”', 'Sign in to view feedback.'); return; }
       try {
         const snap = await window.fsGetDocs(window.fsCollection(window.db, 'feature_suggestions'));
         _fbCache = [];
@@ -2343,7 +3594,7 @@
     const body = card.querySelector('#fas-fb-body');
     const filtered = filter === 'all' ? items : items.filter(i => (i.status || 'pending') === filter);
     if (!filtered.length) {
-      body.innerHTML = emptyState('💬', filter === 'all' ? 'No feedback submitted yet.' : `No ${filter} feedback.`);
+      body.innerHTML = emptyState('ðŸ’¬', filter === 'all' ? 'No feedback submitted yet.' : `No ${filter} feedback.`);
       return;
     }
     body.innerHTML = `
@@ -2364,12 +3615,12 @@
                 <div style="display:flex;align-items:center;gap:6px;">
                   ${item.authorPhoto ? `<img src="${esc(item.authorPhoto)}" loading="lazy" style="width:18px;height:18px;border-radius:50%;object-fit:cover;">` : `<div style="width:18px;height:18px;border-radius:50%;background:rgba(165,180,252,.15);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:rgba(165,180,252,.7);">${esc((item.authorName||'?')[0].toUpperCase())}</div>`}
                   <span style="font-size:10px;color:rgba(255,255,255,.35);">${esc(item.authorName || 'Anonymous')}</span>
-                  <span style="font-size:9px;color:rgba(255,255,255,.2);">· ${fmtTime(ts)}</span>
+                  <span style="font-size:9px;color:rgba(255,255,255,.2);">Â· ${fmtTime(ts)}</span>
                 </div>
                 <div style="display:flex;gap:5px;">
-                  <button class="fas-fb-act" data-id="${esc(item.id)}" data-status="done" style="padding:3px 8px;font-size:9px;border-radius:6px;cursor:pointer;border:1px solid rgba(52,211,153,.3);background:rgba(52,211,153,.08);color:rgba(52,211,153,.75);font-weight:600;">✓ Done</button>
-                  <button class="fas-fb-act" data-id="${esc(item.id)}" data-status="dismissed" style="padding:3px 8px;font-size:9px;border-radius:6px;cursor:pointer;border:1px solid rgba(255,100,100,.3);background:rgba(255,100,100,.06);color:rgba(255,100,100,.65);font-weight:600;">✗ Dismiss</button>
-                  <button class="fas-fb-act" data-id="${esc(item.id)}" data-status="pending" style="padding:3px 8px;font-size:9px;border-radius:6px;cursor:pointer;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.35);">↺ Reset</button>
+                  <button class="fas-fb-act" data-id="${esc(item.id)}" data-status="done" style="padding:3px 8px;font-size:9px;border-radius:6px;cursor:pointer;border:1px solid rgba(52,211,153,.3);background:rgba(52,211,153,.08);color:rgba(52,211,153,.75);font-weight:600;">âœ“ Done</button>
+                  <button class="fas-fb-act" data-id="${esc(item.id)}" data-status="dismissed" style="padding:3px 8px;font-size:9px;border-radius:6px;cursor:pointer;border:1px solid rgba(255,100,100,.3);background:rgba(255,100,100,.06);color:rgba(255,100,100,.65);font-weight:600;">âœ— Dismiss</button>
+                  <button class="fas-fb-act" data-id="${esc(item.id)}" data-status="pending" style="padding:3px 8px;font-size:9px;border-radius:6px;cursor:pointer;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.35);">â†º Reset</button>
                 </div>
               </div>
             </div>`;
@@ -2462,18 +3713,22 @@
               if (d.displayName === displayName || d.email === displayName || doc.id === displayName) found = doc.id;
             });
             cb(found || '');
-          }).catch(function() { tb.textContent = '✗ FS'; });
+          }).catch(function() { tb.textContent = 'âœ— FS'; });
         };
         lookup(function(uid) {
           if (!uid) { tb.textContent = 'No UID'; return; }
           tb.textContent = '...';
           tb.disabled = true;
           window.fsSetDoc(window.fsDoc(window.db, 'players', uid), { premium: true, trial: true, role: 'premium', premiumExpiresAt: Date.now() + trialDays * 24 * 60 * 60 * 1000 }, { merge: true }).then(function() {
-            tb.textContent = '✓';
+            tb.textContent = 'âœ“';
             tb.style.borderColor = 'rgba(52,211,153,0.6)';
             // Update cache in-memory so badges appear immediately
             if (window.__fas_usersCache && window.__fas_usersCache[uid]) {
               window.__fas_usersCache[uid].role = 'premium';
+              try {
+                const roles = JSON.parse(localStorage.getItem('fh_user_roles')||'{}');
+                roles[uid] = 'premium'; localStorage.setItem('fh_user_roles', JSON.stringify(roles));
+              } catch {}
               window.__fas_usersCache[uid].premium = true;
               window.__fas_usersCache[uid].trial = true;
               window.__fas_usersCache[uid].premiumExpiresAt = Date.now() + trialDays * 24 * 60 * 60 * 1000;
@@ -2481,7 +3736,7 @@
             scheduleUserCardPatch();
             setTimeout(function() { tb.textContent = 'Trial'; tb.disabled = false; }, 2000);
           }).catch(function(err) {
-            tb.textContent = '✗';
+            tb.textContent = 'âœ—';
             setTimeout(function() { tb.textContent = 'Trial'; tb.disabled = false; }, 3000);
           });
         });
@@ -2546,11 +3801,11 @@
         // Even without a fixed container, if stream is live it's a call
         return true;
       }
-      // Stream exists but all tracks stopped — call ended
+      // Stream exists but all tracks stopped â€” call ended
       return false;
     }
 
-    // No getUserMedia stream captured — definitely not a call
+    // No getUserMedia stream captured â€” definitely not a call
     return false;
   }
 
@@ -2744,46 +3999,27 @@
   }
 
   /* =========================================================
-     GAME IFRAME PERMISSION FIX
-     Ensures game iframes have the permissions they need to run.
-  ========================================================= */
-  function fixGameIframes() {
-    document.querySelectorAll('iframe').forEach(iframe => {
-      const src = iframe.src || '';
-      if (!src) return;
-      if (src.includes('githack') || src.includes('github') || src.includes('gitlab') ||
-          src.includes('itch.io') || src.includes('gmes') || src.includes('game')) {
-        if (!iframe.dataset.fasFixed) {
-          iframe.dataset.fasFixed = '1';
-          iframe.setAttribute('allow', 'autoplay; fullscreen; pointer-lock; gamepad');
-          if (!iframe.getAttribute('sandbox') || iframe.getAttribute('sandbox') === '') {
-            iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-pointer-lock allow-modals allow-downloads');
-          }
-        }
-      }
-    });
-  }
-
-  /* =========================================================
      PROXY NAV BAR  (replaces marquee ticker in top navbar)
   ========================================================= */
   let _proxyBarInjected = false;
   let _povEscBound = false;
-  let _overlayBuilt = false; // hard lock — prevents race-condition double-build
+  let _overlayBuilt = false; // hard lock â€” prevents race-condition double-build
   // Tabbed browser state
   let _tabs = [];
   let _activeTabId = null;
   let _tabIdCounter = 0;
   let _tabNavHist = [];    // stack of {tabId, url} for back/forward per-tab
-  let _tabNavIdx = {};     // tabId → current index in _tabNavHist
+  let _tabNavIdx = {};     // tabId â†’ current index in _tabNavHist
 
-  function _injectBlackMarketNav() {
+  function _injectRewardsNav() {
     if (document.getElementById('fas-bm-nav-btn')) return true;
     const nav = document.querySelector('nav');
     if (!nav) return false;
+    // The buttons may live inside the scroll wrapper (.fas-nav-scroll).
+    const scope = nav.querySelector('.fas-nav-scroll') || nav;
     // Find Home button by iterating children
     let homeBtn = null;
-    for (const child of nav.children) {
+    for (const child of scope.children) {
       if (child.tagName === 'BUTTON' || child.tagName === 'A') {
         const txt = child.textContent.trim().toLowerCase();
         if (txt === 'home') { homeBtn = child; break; }
@@ -2791,9 +4027,10 @@
     }
     if (!homeBtn) return false;
 
+    // Rewards button â€” warm gold
     const btn = document.createElement('button');
     btn.id = 'fas-bm-nav-btn';
-    btn.innerHTML = '<span style="font-size:13px;">🏴</span> Black Market';
+    btn.innerHTML = '<span style="font-size:13px;">ðŸŽ</span> Rewards';
     btn.style.cssText = [
       'display:inline-flex;align-items:center;gap:6px',
       'padding:6px 14px;border-radius:20px',
@@ -2841,7 +4078,7 @@
     ov.style.cssText = 'display:none;position:fixed;inset:0;z-index:2147483647;flex-direction:column;background:#0d0e14;';
     ov._activeTabId = null;
 
-    // ── Toolbar ──
+    // â”€â”€ Toolbar â”€â”€
     const tb = document.createElement('div');
     tb.id = 'fas-pov-tb';
     tb.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 10px;flex-shrink:0;background:#0d0e14;border-bottom:1px solid rgba(255,255,255,0.08);';
@@ -2884,17 +4121,17 @@
 
     tb.append(btnBack, btnFwd, btnReload, urlForm, btnNewTab, btnClose);
 
-    // ── Tab bar ──
+    // â”€â”€ Tab bar â”€â”€
     const tabBar = document.createElement('div');
     tabBar.id = 'fas-pov-tabs';
     tabBar.style.cssText = 'display:flex;align-items:center;gap:2px;padding:0 10px;flex-shrink:0;background:#0d0e14;border-bottom:1px solid rgba(255,255,255,0.05);overflow-x:auto;min-height:32px;';
 
-    // ── Content area ──
+    // â”€â”€ Content area â”€â”€
     const content = document.createElement('div');
     content.id = 'fas-pov-content';
     content.style.cssText = 'flex:1;position:relative;overflow:hidden;background:#0d0e14;';
 
-    // ── Loading bar ──
+    // â”€â”€ Loading bar â”€â”€
     const lb = document.createElement('div');
     lb.id = 'fas-pov-loadbar';
     lb.style.cssText = 'position:absolute;top:0;left:0;height:2px;width:0%;background:linear-gradient(90deg,#e53935,#ff6f00);transition:width .3s;z-index:1;pointer-events:none;';
@@ -2903,7 +4140,7 @@
     ov.append(tb, tabBar, content);
     document.body.appendChild(ov);
 
-    // ── Events ──
+    // â”€â”€ Events â”€â”€
     btnClose.addEventListener('click', _closeBrowser);
     btnNewTab.addEventListener('click', () => _createTab('https://duckduckgo.com', 'New Tab'));
 
@@ -2961,32 +4198,29 @@
     return null;
   }
 
-  // ── YouTube → piped.video rewrite (bypass proxy for YT) ──
-  function _ytToPiped(rawUrl) {
+  // â”€â”€ YouTube: rewrite to embed (works through proxy) â”€â”€
+  function _rewriteYouTube(rawUrl) {
     try {
       var u = new URL(rawUrl);
       var h = u.hostname.toLowerCase();
       var isYT = (h === 'youtube.com' || h === 'www.youtube.com' || h === 'm.youtube.com' || h === 'music.youtube.com');
       var isShort = (h === 'youtu.be');
       if (!isYT && !isShort) return null;
+      var v = u.searchParams.get('v');
+      if (v) return '/px?url=' + encodeURIComponent('https://www.youtube.com/embed/' + v + '?autoplay=1&rel=0' + (u.searchParams.get('t') ? '&start=' + u.searchParams.get('t').replace(/[^0-9]/g, '') : ''));
+      var shorts = u.pathname.match(/^\/shorts\/([^/?#]+)/);
+      if (shorts) return '/px?url=' + encodeURIComponent('https://www.youtube.com/embed/' + shorts[1] + '?autoplay=1&rel=0');
       if (isShort) {
         var id = u.pathname.replace(/^\//, '').split('/')[0];
-        return id ? 'https://piped.video/watch?v=' + id + (u.search || '') : 'https://piped.video/';
+        if (id) return '/px?url=' + encodeURIComponent('https://www.youtube.com/embed/' + id + '?autoplay=1&rel=0');
       }
-      var v = u.searchParams.get('v');
-      if (v) return 'https://piped.video/watch?v=' + v;
-      var list = u.searchParams.get('list');
-      if (list) return 'https://piped.video/playlist?list=' + list;
       var q = u.searchParams.get('search_query') || u.searchParams.get('q');
-      if (q) return 'https://piped.video/results?search_query=' + encodeURIComponent(q);
-      var shorts = u.pathname.match(/^\/shorts\/([^/?#]+)/);
-      if (shorts) return 'https://piped.video/watch?v=' + shorts[1];
-      if (/^\/@|^\/c\/|^\/user\/|^\/channel\//.test(u.pathname)) return 'https://piped.video' + u.pathname + (u.search || '');
-      return 'https://piped.video/';
+      if (q) return '/px?url=' + encodeURIComponent('https://www.youtube.com/results?search_query=' + encodeURIComponent(q));
+      return '/px?url=' + encodeURIComponent('https://www.youtube.com/tv');
     } catch(e) { return null; }
   }
 
-  // ── Tab management ──
+  // â”€â”€ Tab management â”€â”€
   function _createTab(url, title) {
     buildProxyOverlay();
     const ov = document.getElementById('fas-pov');
@@ -3069,8 +4303,8 @@
     if (url && url !== 'about:blank') {
       const lb = document.getElementById('fas-pov-loadbar');
       if (lb) lb.style.width = '25%';
-      const pipedDirect = _ytToPiped(url);
-      iframe.src = pipedDirect ? pipedDirect : '/px?url=' + encodeURIComponent(url);
+      var proxied = _rewriteYouTube(url);
+      iframe.src = proxied || ('/px?url=' + encodeURIComponent(url));
     } else if (!url) {
       iframe.srcdoc = '<html><body style="background:#0d0e14;display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:sans-serif;color:#555;font-size:14px;margin:0;height:100%;"><div style="font-size:32px;margin-bottom:12px;">\uD83C\uDF10</div><div>Enter a URL or search to start browsing</div></body></html>';
     }
@@ -3135,7 +4369,7 @@
     _createTab(url);
   }
 
-  /* Open a URL in a new tab reliably — uses anchor click to bypass window.open wrappers/popup blockers */
+  /* Open a URL in a new tab reliably â€” uses anchor click to bypass window.open wrappers/popup blockers */
   function _openNewTab(href) {
     const a = document.createElement('a');
     a.href = href;
@@ -3151,19 +4385,19 @@
     if (!url) return;
     mode = mode || gs('fas_proxy_mode', 'overlay');
 
-    // YouTube → piped.video: load directly (no proxy) so module scripts work
-    const pipedUrl = _ytToPiped(url);
-    if (pipedUrl) {
+    // YouTube â†’ rewrite for proxy compatibility
+    const ytUrl = _rewriteYouTube(url);
+    if (ytUrl) {
       if (mode === 'overlay') {
-        _createTab(url); // _createTab already calls _ytToPiped internally
+        _createTab(url); // _createTab already rewrites YouTube internally
       } else if (mode === 'direct') {
-        window.location.href = pipedUrl;
+        window.location.href = ytUrl;
       } else if (mode === 'newtab') {
-        _openNewTab(pipedUrl);
+        _openNewTab(ytUrl);
       } else if (mode === 'proxy1') {
-        window.location.href = '/proxy1?q=' + encodeURIComponent(pipedUrl);
+        window.location.href = '/px?url=' + encodeURIComponent(url);
       } else if (mode === 'proxy2') {
-        window.location.href = '/proxy2?q=' + encodeURIComponent(pipedUrl);
+        window.location.href = '/px?url=' + encodeURIComponent(url);
       }
       return;
     }
@@ -3176,33 +4410,20 @@
       window.location.href = proxyUrl;
     } else if (mode === 'newtab') {
       _openNewTab(proxyUrl);
-    } else if (mode === 'proxy1') {
-      /* Navigate the current tab directly into proxy1.html — this is exactly the same
-         as the user opening proxy1.html manually, so YouTube and all sites work identically */
-      window.location.href = '/proxy1?q=' + encodeURIComponent(url);
-    } else if (mode === 'proxy2') {
-      window.location.href = '/proxy2?q=' + encodeURIComponent(url);
+} else if (mode === 'proxy1' || mode === 'proxy2') {
+      /* proxy1.html / proxy2.html don't exist on this server — fall back to /px
+         (which does the same job: server-side fetch + URL rewriting). */
+window.location.href = '/px?url=' + encodeURIComponent(url);
     }
   }
 
   /* =========================================================
-     WINDOW.OPEN + IFRAME WRAPPER — proxy external URLs opened by hubs
+     IFRAME WRAPPER â€” proxy external URLs in popup+iframe pattern
      LimitedTimeHub and WebHub create a blank popup, then create an
-     iframe inside it with f.src = actualUrl. We intercept both:
-     1) window.open(extUrl) — direct external URL openings
-     2) iframe.src setter on popups — catches the popup+iframe pattern
+     iframe inside it with f.src = actualUrl. We intercept the
+     iframe.src setter to route through proxy instead.
+     (window.open is NOT wrapped â€” normal hub clicks open natively)
   ========================================================= */
-  (function _wrapWindowOpen() {
-    const _origOpen = window.open;
-    window.open = function(url, name, features) {
-      if (typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://')) && !url.includes(location.hostname)) {
-        _createTab(url);
-        return null;
-      }
-      return _origOpen.apply(this, arguments);
-    };
-  })();
-
   (function _wrapIframeSrc() {
     try {
       var desc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
@@ -3214,8 +4435,8 @@
               var doc = this.ownerDocument;
               var win = doc ? doc.defaultView : null;
               if (win && win !== window && win.opener === window) {
-                _createTab(val);
-                return;
+                var proxyUrl = '/px?url=' + encodeURIComponent(val);
+                return desc.set.call(this, proxyUrl);
               }
             } catch(e) {}
           }
@@ -3229,7 +4450,7 @@
   })();
 
   /* =========================================================
-     INTERCEPT HUBS — route LimitedTime / Web clicks through /px
+     INTERCEPT HUBS â€” route LimitedTime / Web clicks through /px
   ========================================================= */
   function _interceptHubClicks() {
     document.addEventListener('click', e => {
@@ -3247,22 +4468,21 @@
         const isWeb = h1 && h1.textContent.trim() === 'Web';
         if (!isLimited && !isWeb) return;
 
-        e.preventDefault();
-        e.stopPropagation();
-
         if (isLimited) {
+          e.preventDefault();
+          e.stopPropagation();
           const visitBtn = btn.closest('button');
           if (!visitBtn || !visitBtn.textContent.includes('Visit Site')) return;
           // Find the parent card which has the URL in its React scope
           const card = visitBtn.closest('[class*="rounded-xl"]');
           if (!card) return;
-          // The URL is stored on the onclick of the button — can't access it from outside.
+          // The URL is stored on the onclick of the button â€” can't access it from outside.
           // Instead, look for a nearby div with the URL in a data attribute or text
-          // Fallback: just open duckduckgo — actually, scan card for url patterns in text
+          // Fallback: just open duckduckgo â€” actually, scan card for url patterns in text
           const cardText = card.textContent || '';
           const urlMatch = cardText.match(/https?:\/\/[^\s]+/);
           if (urlMatch) { _createTab(urlMatch[0]); return; }
-          // Last resort — open a new tab for the card's h3 text as search
+          // Last resort â€” open a new tab for the card's h3 text as search
           const h3 = card.querySelector('h3');
           if (h3) { _createTab('https://duckduckgo.com/?q=' + encodeURIComponent(h3.textContent)); }
         }
@@ -3271,9 +4491,19 @@
           // Intercept card clicks (they open via window.open or the b() popup)
           const card = btn.closest('[class*="rounded-xl"]');
           if (!card) return;
+          // Google Sites section → never intercept; React handler navigates to the real URL directly
+          try {
+            var bw = card.parentElement ? card.parentElement.closest('[class*="overflow-hidden"]') : null;
+            if (bw) {
+              var bh = bw.querySelector('button span');
+              if (bh && /google sites/i.test(bh.textContent || '')) return;
+            }
+          } catch(_){}
           const cardText = card.textContent || '';
           // Skip proxy1/proxy2 direct links (those should open normally)
           if (cardText.includes('proxy1') || cardText.includes('proxy2')) return;
+          e.preventDefault();
+          e.stopPropagation();
           // Find URL in card text
           const urlMatch = cardText.match(/https?:\/\/[^\s]+/);
           if (urlMatch) { _createTab(urlMatch[0]); return; }
@@ -3282,7 +4512,7 @@
     }, true);
   }
 
-  // ── Autocomplete suggestions ──────────────────────────────
+  // â”€â”€ Autocomplete suggestions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let _acTimer = null;
   let _acAbort = null;
 
@@ -3339,96 +4569,7 @@
     dd.style.display = 'block';
   }
 
-  function _doInjectProxyBar() {
-    if (document.getElementById('fas-proxy-bar')) return true;
-    _proxyBarInjected = false;
-
-    // Find header by tag name
-    const header = document.querySelector('header');
-    if (!header) return false;
-
-    // Find the marquee wrapper by iterating children for overflow-hidden
-    let wrapper = null;
-    for (const child of header.children) {
-      if (child.className && child.className.includes('overflow-hidden')) {
-        wrapper = child;
-        break;
-      }
-    }
-    if (!wrapper) return false;
-
-    _proxyBarInjected = true;
-    wrapper.innerHTML = '';
-
-    // Force visibility — override Tailwind's 'hidden lg:flex' on all viewports
-    wrapper.style.setProperty('display', 'flex', 'important');
-    wrapper.style.setProperty('opacity', '1', 'important');
-    wrapper.style.setProperty('visibility', 'visible', 'important');
-
-    const savedMode = gs('fas_proxy_mode', 'overlay');
-
-    const bar = document.createElement('form');
-    bar.id = 'fas-proxy-bar';
-    bar.style.cssText = 'display:flex;align-items:center;width:100%;height:32px;background:rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:0 4px 0 10px;gap:4px;transition:border-color .2s;box-sizing:border-box;';
-
-    bar.innerHTML = [
-      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
-      '<input id="fas-proxy-input" type="text" placeholder="Search or enter URL..." autocomplete="off" spellcheck="false" style="flex:1;background:none;border:none;outline:none;color:#e8e9f0;font-size:12px;font-family:inherit;min-width:0;caret-color:#e53935;">',
-      '<select id="fas-proxy-mode" style="background:rgba(0,0,0,0.3);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:2px 4px;font-size:9px;cursor:pointer;flex-shrink:0;outline:none;">',
-        '<option value="overlay"' + (savedMode==='overlay'?' selected':'') + '>Overlay</option>',
-        '<option value="direct"' + (savedMode==='direct'?' selected':'') + '>Direct</option>',
-        '<option value="newtab"' + (savedMode==='newtab'?' selected':'') + '>New Tab</option>',
-        '<option value="proxy1"' + (savedMode==='proxy1'?' selected':'') + '>Proxy 1</option>',
-        '<option value="proxy2"' + (savedMode==='proxy2'?' selected':'') + '>Proxy 2</option>',
-      '</select>',
-      '<button type="submit" style="background:#e53935;border:none;color:#fff;border-radius:16px;padding:3px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap;letter-spacing:.2px;transition:opacity .15s;" onmouseover="this.style.opacity=\'.8\'" onmouseout="this.style.opacity=\'1\'">Go</button>',
-    ].join('');
-
-    const inp = bar.querySelector('#fas-proxy-input');
-    const dd = _buildSuggestionsDropdown(inp, wrapper);
-
-    inp.addEventListener('focus', () => bar.style.borderColor = 'rgba(229,57,53,0.7)');
-    inp.addEventListener('blur', () => {
-      bar.style.borderColor = 'rgba(255,255,255,0.1)';
-      setTimeout(() => { dd.style.display = 'none'; }, 200);
-    });
-    bar.onmouseover = () => { if (document.activeElement !== inp) bar.style.borderColor = 'rgba(229,57,53,0.4)'; };
-    bar.onmouseout  = () => { if (document.activeElement !== inp) bar.style.borderColor = 'rgba(255,255,255,0.1)'; };
-
-    inp.addEventListener('input', () => {
-      const q = inp.value.trim();
-      clearTimeout(_acTimer);
-      if (q.length < 2) { dd.style.display = 'none'; return; }
-      _acTimer = setTimeout(async () => {
-        const suggestions = await _fetchSuggestions(q);
-        _showSuggestions(dd, suggestions, inp, bar);
-      }, 250);
-    });
-
-    inp.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { dd.style.display = 'none'; inp.blur(); }
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        const items = dd.querySelectorAll('div');
-        if (items.length) items[0].focus();
-      }
-    });
-
-    const modeSel = bar.querySelector('#fas-proxy-mode');
-    modeSel.addEventListener('change', () => ss('fas_proxy_mode', modeSel.value));
-
-    bar.addEventListener('submit', e => {
-      e.preventDefault();
-      e.stopPropagation();
-      dd.style.display = 'none';
-      const q = inp.value.trim();
-      if (!q) return;
-      launchProxyBar(q, modeSel.value);
-    });
-
-    wrapper.appendChild(bar);
-    buildProxyOverlay();
-  }
+  function _doInjectProxyBar() { return false; }
 
   /* =========================================================
      MUTATION OBSERVER  (Settings + Profile Modal injection)
@@ -3445,7 +4586,7 @@
         if (n.nodeType !== 1) continue;
         try { tryInjectSettings(n); } catch(e) {}
         try { tryInjectProfileModal(n); } catch(e) {}
-        // Try admin injection on every added node — the h1 may appear in any
+        // Try admin injection on every added node â€” the h1 may appear in any
         // subtree. _injectAdminCss() inside is idempotent so calling it
         // repeatedly (CSS already present) is a no-op.
         try { tryInjectAdmin(n); } catch(e) {}
@@ -3460,7 +4601,7 @@
       if (hadRemovals && window.__fas_adminInjected) {
         const stillThere = !!document.querySelector('h1') &&
           [...document.querySelectorAll('h1')].some(h => h.textContent.trim() === 'Admin Panel');
-        const toolsGone = !document.getElementById('fas-admin-tools');
+        const toolsGone = !document.getElementById('fas-admin-ads');
         if (!stillThere || toolsGone) {
           if (!stillThere) _removeAdminCss();
           window.__fas_adminInjected = false;
@@ -3468,7 +4609,7 @@
       }
     } catch(e) {}
 
-    // Also do a quick full-body CSS check on every mutation — handles the case
+    // Also do a quick full-body CSS check on every mutation â€” handles the case
     // where the admin panel h1 was already in the DOM before this observer fired
     // (e.g., a parent wrapper was added, not the h1 itself).
     try { tryInjectAdmin(document.body); } catch(e) {}
@@ -3476,9 +4617,7 @@
     clearTimeout(_moTimer);
     _moTimer = setTimeout(() => {
       tryInjectHomepage();
-      fixGameIframes();
-      _doInjectProxyBar();
-      _injectBlackMarketNav();
+      _injectRewardsNav();
     }, 200);
 
     // Patch user cards whenever the DOM changes (debounced)
@@ -3491,7 +4630,7 @@
   /* =========================================================
      ADMIN PAGE OVERLAY GUARD
      Clears every inject.js overlay the instant the user lands on
-     the admin route — handles direct URL load, hash navigation,
+     the admin route â€” handles direct URL load, hash navigation,
      and SPA pushState/replaceState transitions.
   ========================================================= */
   function _clearAdminOverlays() {
@@ -3518,16 +4657,16 @@
     if (so) so.style.display = 'none';
   }
 
-  // ── CSS-based admin panel visibility override ─────────────────────────────
+  // â”€â”€ CSS-based admin panel visibility override â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Framer Motion sets inline `opacity: 0` (no !important) on its motion.div.
   // A <style> tag with `opacity: 1 !important` beats inline styles without
-  // !important — this is the ONLY reliable way to prevent the black-screen
+  // !important â€” this is the ONLY reliable way to prevent the black-screen
   // because Framer Motion overwrites JS-set inline styles on every animation
   // frame.  The rule targets the exact Tailwind class combo of the admin card.
   //
   // On non-admin pages the style tag is absent, so no other elements are
   // affected.  When the React component remounts (new DOM node, same classes)
-  // the CSS rule still applies automatically — no element-reference bookkeeping.
+  // the CSS rule still applies automatically â€” no element-reference bookkeeping.
   const _ADMIN_CSS_ID = 'fas-admin-vis-override';
   const _ADMIN_CSS_RULE = `
     /* Prevent Framer Motion from keeping the admin card invisible */
@@ -3543,7 +4682,7 @@
     if (document.getElementById(_ADMIN_CSS_ID)) return;
     const s = document.createElement('style');
     s.id = _ADMIN_CSS_ID;
-    // Only force opacity — never transform/visibility which can break React
+    // Only force opacity â€” never transform/visibility which can break React
     // animations and cause a frozen blue screen if the wrong element is targeted.
     s.textContent = `
       .backdrop-blur-xl.rounded-2xl,
@@ -3571,7 +4710,7 @@
         // Reset injection flag so tryInjectAdmin re-runs fresh each admin visit
         window.__fas_adminInjected = false;
       } else {
-        // Leaving admin — remove the CSS override so other pages animate normally
+        // Leaving admin â€” remove the CSS override so other pages animate normally
         _removeAdminCss();
       }
     }
@@ -3593,6 +4732,8 @@
      INIT
   ========================================================= */
   function init() {
+    if (window.__fas_inited) return;
+    window.__fas_inited = true;
     buildSearchOverlay();
     buildPanel();
     buildBanDialog();
@@ -3602,9 +4743,28 @@
     setTimeout(() => {
       tryInjectAdmin(document.body);
       tryInjectHomepage();
-      fixGameIframes();
-      _injectBlackMarketNav();
+      _injectRewardsNav();
     }, 1500);
+
+    // Diagnostic: dump all h1/h2 elements on the page after 3s
+    setTimeout(() => {
+      const allH1 = [...document.querySelectorAll('h1')].map(h => JSON.stringify(h.textContent.trim().substring(0, 60)));
+      const allH2 = [...document.querySelectorAll('h2')].map(h => JSON.stringify(h.textContent.trim().substring(0, 60)));
+      console.log('[FAS] DIAGNOSTIC — all h1s:', allH1.join(' | '));
+      console.log('[FAS] DIAGNOSTIC — all h2s:', allH2.join(' | '));
+      console.log('[FAS] DIAGNOSTIC — URL hash:', location.hash, 'pathname:', location.pathname);
+      console.log('[FAS] DIAGNOSTIC — __fas_adminInjected:', window.__fas_adminInjected);
+      console.log('[FAS] DIAGNOSTIC — #fas-admin-ads exists:', !!document.getElementById('fas-admin-ads'));
+    }, 3000);
+
+    // Periodic fallback: re-try admin injection every 3s for 30s
+    // Handles case where admin panel loads slowly or React re-renders our tools
+    var _adminPollCount = 0;
+    var _adminPoll = setInterval(function() {
+      _adminPollCount++;
+      if (_adminPollCount > 10) { clearInterval(_adminPoll); return; }
+      try { tryInjectAdmin(document.body); } catch(e) {}
+    }, 3000);
 
     // After users cache loads, patch the DOM immediately and run admin batch fix
     waitForFBFull(async () => {
@@ -3619,58 +4779,56 @@
       });
     });
 
-    // Poll for the navbar marquee and replace with proxy bar (React may render it late)
-    let _pbPoll = 0;
-    const _pbInterval = setInterval(() => {
-      if (_doInjectProxyBar() || ++_pbPoll > 30) clearInterval(_pbInterval);
-    }, 500);
+    // proxy bar polling removed
 
-    // Restore proxy overlay if user did a browser refresh (F5/Ctrl+R)
-    // Never restore on admin pages — it causes a black screen over the panel
-    const saved = _getSavedProxyState();
-    if (saved && saved.url && !_isAdminUrl()) {
-      // Wait for the page to fully render before reopening
-      setTimeout(() => {
-        _loadInOverlay(saved.url, true);
-      }, 800);
-    } else if (_isAdminUrl()) {
-      // Clear stale proxy state when landing on admin so it never blocks the panel
-      _clearProxyState();
-    }
-
-    console.log('[FasahatHub Extensions] ✓ Loaded v4');
+    console.log('[Galaxy Annihilating CHS Lab Extensions] âœ“ Loaded v6');
 
     // Persist user info to localStorage immediately via basic auth wait
     waitForFBAuth(() => {
       try {
         const user = window.__FIREBASE_USER__ || window.__USER__;
         if (!user) return;
-        const resolvedName  = user.displayName || (user.email ? user.email.split('@')[0] : 'User');
-        const resolvedPhoto = user.photoURL || '';
+        const customName = localStorage.getItem('fas_custom_name') || '';
+        const resolvedName  = customName || user.displayName || (user.email ? user.email.split('@')[0] : 'User');
+        const resolvedPhoto = user.photoURL || _generateDefaultAvatar(resolvedName);
         localStorage.setItem('fas_uid',   user.uid || '');
         localStorage.setItem('fas_name',  resolvedName);
         localStorage.setItem('fas_photo', resolvedPhoto);
+        try {
+          if (window.db && window.fsDoc && window.fsGetDoc && user.uid) {
+            window.fsGetDoc(window.fsDoc(window.db,'players',user.uid)).then(s=>{const d=s&&s.data()||{};const exp=d.premiumExpiresAt;const isP=d.premium&&(!exp||exp>Date.now());const r=d.role||(isP?'premium':'');try{const m=JSON.parse(localStorage.getItem('fh_user_roles')||'{}');if(r){m[user.uid]=r}else delete m[user.uid];localStorage.setItem('fh_user_roles',JSON.stringify(m))}catch{}}).catch(()=>{});
+          }
+        } catch {}
       } catch {}
     });
 
-    // PATCH Firestore with correct name/photo — waits for ALL Firestore functions to be ready
+    // PATCH Firestore with correct name/photo â€” waits for ALL Firestore functions to be ready
     waitForFBFull(() => {
       try {
         const user = window.__FIREBASE_USER__ || window.__USER__;
         if (!user) return;
-        const resolvedName  = user.displayName || (user.email ? user.email.split('@')[0] : 'User');
-        const resolvedPhoto = user.photoURL || '';
+        const customName = localStorage.getItem('fas_custom_name') || '';
+        const resolvedName  = customName || user.displayName || (user.email ? user.email.split('@')[0] : 'User');
+        const resolvedPhoto = user.photoURL || _generateDefaultAvatar(resolvedName);
 
           window.fsGetDoc(window.fsDoc(window.db, 'players', user.uid)).then(snap => {
           const d = snap ? (snap.data() || {}) : {};
           var _exp = d.premiumExpiresAt;
           localStorage.setItem('fas_premium', d.premium && (!_exp || _exp > Date.now()) ? '1' : '0');
+          try {
+            const roles = JSON.parse(localStorage.getItem('fh_user_roles')||'{}');
+            const r = d.role || (d.premium && (!_exp||_exp>Date.now()) ? 'premium' : '');
+            if (r) roles[user.uid] = r; else delete roles[user.uid];
+            localStorage.setItem('fh_user_roles', JSON.stringify(roles));
+          } catch {}
 
           const patch = {};
           // Always overwrite displayName if it looks like a UID or is missing
           const storedName = d.displayName || '';
-          if (!storedName || looksLikeUid(storedName)) patch.displayName = resolvedName;
-          // Overwrite photo if missing — also check alternative Firestore fields
+          const docCustom = d.customName || '';
+          if (docCustom && (!storedName || storedName !== docCustom)) patch.displayName = docCustom;
+          else if (!storedName || looksLikeUid(storedName)) patch.displayName = resolvedName;
+          // Overwrite photo if missing â€” also check alternative Firestore fields
           const storedPhoto = d.photoURL || d.photo || d.avatar || d.avatarUrl || d.profilePicture || d.picture || '';
           if (!d.photoURL && resolvedPhoto) {
             patch.photoURL = resolvedPhoto;
@@ -3710,7 +4868,7 @@
         await loadUsersCache();
         const cache = window.__fas_usersCache || {};
 
-        // Fetch posts — admin fetches all, regular user fetches only their own
+        // Fetch posts â€” admin fetches all, regular user fetches only their own
         let postsSnap;
         if (isAdmin) {
           postsSnap = await window.fsGetDocs(window.fsCollection(window.db, 'posts'));
@@ -3728,7 +4886,7 @@
           if (!authorUid) return;
 
           // Check if the post's name fields look like a UID (wrong stored value)
-          // Posts may use authorName or author — patch both to be safe
+          // Posts may use authorName or author â€” patch both to be safe
           const postName  = d.authorName || d.author || '';
           const postPhoto = d.authorPhoto || '';
           const needsNameFix  = !postName || looksLikeUid(postName);
@@ -3760,14 +4918,11 @@
     });
   }
 
-  // Watchdog: re-inject Black Market nav & proxy bar every 1.5s
-  // (React SPA navigation may re-render and remove our injected elements)
-  // NOTE: tryInjectAdmin is NOT called here — it's disabled for crash isolation
+  // Watchdog: re-inject Rewards nav every 1.5s
   // Skip on admin pages to avoid interfering with React-managed DOM
   setInterval(() => {
     if (window.location.pathname.startsWith('/admin')) return;
-    try { _injectBlackMarketNav(); } catch(e) {}
-    try { _doInjectProxyBar(); } catch(e) {}
+    try { _injectRewardsNav(); } catch(e) {}
   }, 1500);
 
   // Periodic badge re-injection (every 5s) to handle React re-renders that
@@ -3776,134 +4931,275 @@
     try { scheduleUserCardPatch(); } catch(e) {}
   }, 5000);
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else setTimeout(init, 150);
+  // Load users cache + patch DOM once Firebase is ready.
+  // NOTE: init() is NOT called — its MutationObserver interferes with React pages
+  // (e.g. achievements). Only run the cache/DOM patching logic directly.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      waitForFBFull(function() { loadUsersCache().then(function() { try { patchUserCardsInDOM(); } catch(e) {} }, function() {}); });
+    });
+  } else {
+    waitForFBFull(function() { loadUsersCache().then(function() { try { patchUserCardsInDOM(); } catch(e) {} }, function() {}); });
+  }
+
+  // ——— STANDALONE ADMIN INJECTION (init() is not called) ———
+  // Use a MutationObserver specifically for admin panel detection.
+  var _adminMO = new MutationObserver(function() {
+    try { tryInjectAdmin(document.body); } catch(e) {}
+  });
+  if (document.body) {
+    _adminMO.observe(document.body, { childList: true, subtree: true });
+  } else {
+    document.addEventListener('DOMContentLoaded', function() {
+      _adminMO.observe(document.body, { childList: true, subtree: true });
+    });
+  }
+  // Also poll periodically for 60s in case observer misses it
+  var _adminPoll = 0;
+  var _adminPollId = setInterval(function() {
+    _adminPoll++;
+    if (_adminPoll > 20) { clearInterval(_adminPollId); return; }
+    try { tryInjectAdmin(document.body); } catch(e) {}
+  }, 3000);
+  // Immediate first try after short delay
+  setTimeout(function() { try { tryInjectAdmin(document.body); } catch(e) {} }, 500);
+
+  // Apply music player hide setting on page load (so it hides without opening settings)
+  try { if (typeof applyMusicVisibility === 'function') applyMusicVisibility(); } catch(e) {}
 })();
 
 /* ================================================================
-   FasahatHub — Security & Bug-Fix Patch
-   1. Right-click protection (home / web / movie / anime / manga)
-      → shows "Access Denied" toast + red screen shake (0.5 s)
-   2. Auth state reset: sign-out → sign-in forces a page reload
-      so the admin panel never shows stale data
-   3. Loading-state fix: if Firebase auth never resolves in 8 s,
-      fire a synthetic "auth-changed" event so the React app
-      exits its infinite-loading loop
-================================================================ */
+   STALE CALL CLEANUP + OFFLINE CALL CHECK
+   ================================================================ */
+(function() {
+  // Clean up stale calling-status calls on page load (older than 5 min)
+  function cleanupStaleCalls() {
+    if (!window.db || !window.fsCollection || !window.fsGetDocs || !window.fsQuery || !window.fsWhere || !window.fsUpdateDoc || !window.fsDoc) return;
+    try {
+      window.fsGetDocs(
+        window.fsQuery(
+          window.fsCollection(window.db, 'calls'),
+          window.fsWhere('status', '==', 'calling')
+        )
+      ).then(function(snap) {
+        var now = Date.now();
+        snap.forEach(function(doc) {
+          var d = doc.data() || {};
+          var created = d.createdAt;
+          if (created && created.toMillis) created = created.toMillis();
+          if (created && (now - created > 300000)) {
+            window.fsUpdateDoc(window.fsDoc(window.db, 'calls', doc.id), { status: 'ended' }).catch(function() {});
+          }
+        });
+      }).catch(function() {});
+    } catch(e) {}
+  }
+  cleanupStaleCalls();
+  setInterval(cleanupStaleCalls, 60000);
+
+  // Intercept fsAddDoc for calls: check if callee is online before creating
+  var _origAddDocForCalls = window.fsAddDoc;
+  if (_origAddDocForCalls && !window.__fas_callOnlineCheck) {
+    window.__fas_callOnlineCheck = true;
+    window.fsAddDoc = function(ref, data) {
+      if (ref && ref.id === 'calls' && data && data.calleeUid && !data.calleeCandidates) {
+        // Check if target user is online (last seen < 2 min ago)
+        try {
+          var calleeUid = data.calleeUid;
+          window.fsGetDoc && window.fsGetDoc(window.fsDoc(window.db, 'players', calleeUid)).then(function(docSnap) {
+            var pd = docSnap.data() || {};
+            var lastSeen = pd.lastSeen || pd.lastOnline || 0;
+            if (lastSeen && lastSeen.toMillis) lastSeen = lastSeen.toMillis();
+            if (lastSeen && (Date.now() - lastSeen > 120000)) {
+              _showToast('User appears offline. They may not receive the call.', '#ff9800');
+            }
+          }).catch(function() {});
+        } catch(e) {}
+      }
+      return _origAddDocForCalls.apply(window, arguments);
+    };
+  }
+
+  // Intercept call hang-up: update Firestore so other peer's listener fires
+  var _origUpdateDoc = window.fsUpdateDoc;
+  if (_origUpdateDoc && !window.__fas_callHangupFix) {
+    window.__fas_callHangupFix = true;
+    window.fsUpdateDoc = function(docRef, data) {
+      // When status is set to "ended", ensure the update propagates
+      if (data && data.status === 'ended' && docRef && docRef.path && docRef.path.indexOf('calls/') === 0) {
+        try {
+          // Also clean up local call state after a short delay
+          setTimeout(function() {
+            try {
+              var ls = window.__localStream__;
+              if (ls && ls.getTracks) ls.getTracks().forEach(function(t) { t.stop(); });
+            } catch(e) {}
+          }, 500);
+        } catch(e) {}
+      }
+      return _origUpdateDoc.apply(window, arguments);
+    };
+  }
+})();
+
+/* ================================================================
+   UNREAD MESSAGE COUNTER (red badge)
+   ================================================================ */
+(function() {
+  var LS_KEY = 'fas_lastRead';
+  function getLastRead() { try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch(e) { return {}; } }
+  function setLastRead(obj) { try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch(e) {} }
+
+  function isUnread(conv, lr) {
+    if (!conv || !conv.id) return false;
+    var lt = conv.lastTime || 0;
+    var r = lr[conv.id] || 0;
+    return lt > r;
+  }
+
+  function totalUnread() {
+    var c = window.__fas_conversations || [];
+    var lr = getLastRead();
+    var n = 0;
+    c.forEach(function(x) { if (isUnread(x, lr)) n++; });
+    return n;
+  }
+
+  function ensureBadgeEls() {
+    if (!document.getElementById('fas-unread-badge')) {
+      var b = document.createElement('div');
+      b.id = 'fas-unread-badge';
+      b.style.cssText = 'position:fixed;top:14px;right:16px;z-index:99999;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:#e53935;color:#fff;font-size:11px;font-weight:800;display:none;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.4);font-family:Inter,sans-serif;pointer-events:none;';
+      document.body.appendChild(b);
+    }
+  }
+
+  function refreshGlobalBadge() {
+    ensureBadgeEls();
+    var el = document.getElementById('fas-unread-badge');
+    var n = totalUnread();
+    if (n > 0) { el.style.display = 'flex'; el.textContent = n > 99 ? '99+' : String(n); }
+    else { el.style.display = 'none'; }
+  }
+
+  window.__fas_refreshUnreadBadges = refreshGlobalBadge;
+
+  function refreshRowBadges() {
+    var c = window.__fas_conversations || [];
+    if (!c.length) return;
+    var lr = getLastRead();
+    c.forEach(function(conv) {
+      if (!isUnread(conv, lr) || !conv.name) return;
+      var name = conv.name;
+      var els = document.querySelectorAll('button, a, div');
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        if (el.getAttribute('data-fas-ub') === conv.id) continue;
+        if (el.children.length > 4) continue;
+        var txt = (el.textContent || '').trim();
+        if (txt.indexOf(name) === 0 && txt.length < 160 && txt.length > name.length) {
+          var badge = document.createElement('span');
+          badge.textContent = '1';
+          badge.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;border-radius:9px;background:#e53935;color:#fff;font-size:10px;font-weight:800;vertical-align:middle;';
+          el.setAttribute('data-fas-ub', conv.id);
+          el.appendChild(badge);
+          break;
+        }
+      }
+    });
+  }
+
+  document.addEventListener('click', function(e) {
+    var c = window.__fas_conversations || [];
+    if (!c.length) return;
+    var t = e.target;
+    for (var i = 0; i < c.length; i++) {
+      var conv = c[i];
+      if (!conv.name) continue;
+      var el = t;
+      while (el && el !== document.body) {
+        var txt = (el.textContent || '').trim();
+        if (txt.indexOf(conv.name) === 0 && txt.length < 160 && txt.length > conv.name.length) {
+          var lr = getLastRead();
+          lr[conv.id] = Date.now();
+          setLastRead(lr);
+          var oldBadge = document.querySelector('[data-fas-ub="' + conv.id + '"] span');
+          if (oldBadge && oldBadge.parentNode) oldBadge.parentNode.removeChild(oldBadge);
+          var row = document.querySelector('[data-fas-ub="' + conv.id + '"]');
+          if (row) row.removeAttribute('data-fas-ub');
+          refreshGlobalBadge();
+          break;
+        }
+        el = el.parentNode;
+      }
+    }
+  }, true);
+
+  var _debounce;
+  function schedule() { clearTimeout(_debounce); _debounce = setTimeout(function() { refreshGlobalBadge(); refreshRowBadges(); }, 400); }
+  var obs = new MutationObserver(schedule);
+  obs.observe(document.body, { childList: true, subtree: true });
+  setInterval(schedule, 2000);
+  schedule();
+})();
+
+/* ================================================================
+     CAPTURE SELF USER for DM creation
+  ================================================================ */
+(function(){
+  function capture() {
+    var u = window.__FIREBASE_USER__ || window.__USER__;
+    if (!u) return;
+    window.__fas_selfUid = u.uid || '';
+    window.__fas_selfDisplayName = u.customDisplayName || u.displayName || u.email || '';
+    window.__fas_selfPhoto = u.photoURL || '';
+  }
+  capture();
+  window.addEventListener('auth-changed', capture);
+  setInterval(capture, 5000);
+})();
+
+/* Group calls blocked at Firebase level (isGroupCall check in fsAddDoc interceptor) */
+
+/* ================================================================
+     Galaxy Annihilating CHS Lab - Security & Bug-Fix Patch
+     1. Right-click protection (home / web / movie / anime / manga)
+        shows "Access Denied" toast + red screen shake (0.5 s)
+     2. Auth state reset: sign-out sign-in forces a page reload
+        so the admin panel never shows stale data
+     3. Loading-state fix: if Firebase auth never resolves in 8 s,
+        fire a synthetic "auth-changed" event so the React app
+        exits its infinite-loading loop
+  ================================================================ */
 (function () {
   'use strict';
 
-  /* ── 1. RIGHT-CLICK PROTECTION ── */
-
-  var _rcStyle = document.createElement('style');
-  _rcStyle.textContent = [
-    '@keyframes fasShake{',
-    '  0%{transform:translate(0,0) rotate(0)}',
-    ' 10%{transform:translate(-8px,0) rotate(-1deg)}',
-    ' 20%{transform:translate(8px,0) rotate(1deg)}',
-    ' 30%{transform:translate(-8px,0) rotate(-1deg)}',
-    ' 40%{transform:translate(8px,0) rotate(1deg)}',
-    ' 50%{transform:translate(-4px,0) rotate(0)}',
-    ' 60%{transform:translate(4px,0) rotate(0)}',
-    ' 70%{transform:translate(-2px,0) rotate(0)}',
-    ' 80%{transform:translate(2px,0) rotate(0)}',
-    '100%{transform:translate(0,0) rotate(0)}',
-    '}',
-    '#fas-denied-flash{',
-    '  position:fixed;inset:0;z-index:9999990;',
-    '  background:rgba(220,0,0,0.30);',
-    '  pointer-events:none;',
-    '  transition:opacity 0.5s ease;',
-    '}',
-    '#fas-denied-msg{',
-    '  position:fixed;top:50%;left:50%;',
-    '  transform:translate(-50%,-50%);',
-    '  z-index:9999999;',
-    '  background:rgba(0,0,0,0.92);',
-    '  border:2px solid rgba(220,0,0,0.85);',
-    '  border-radius:16px;',
-    '  padding:18px 48px;',
-    '  font-family:Inter,sans-serif;',
-    '  font-size:17px;font-weight:800;',
-    '  color:#ff4444;',
-    '  letter-spacing:2px;',
-    '  text-transform:uppercase;',
-    '  box-shadow:0 0 50px rgba(255,0,0,0.45);',
-    '  pointer-events:none;',
-    '  transition:opacity 0.35s ease;',
-    '}',
-    '.fas-shaking{animation:fasShake 0.5s ease-out!important;}',
-  ].join('');
-  document.head.appendChild(_rcStyle);
-
-  function _showAccessDenied() {
-    var existing = document.getElementById('fas-denied-msg');
-    if (existing) return;
-
-    var flash = document.createElement('div');
-    flash.id = 'fas-denied-flash';
-    document.body.appendChild(flash);
-
-    var msg = document.createElement('div');
-    msg.id = 'fas-denied-msg';
-    msg.textContent = '⛔  Access Denied';
-    document.body.appendChild(msg);
-
-    document.body.classList.add('fas-shaking');
-
-    setTimeout(function () {
-      flash.style.opacity = '0';
-      msg.style.opacity = '0';
-      document.body.classList.remove('fas-shaking');
-      setTimeout(function () {
-        try { flash.remove(); } catch (e) {}
-        try { msg.remove(); } catch (e) {}
-      }, 380);
-    }, 900);
-  }
-
-  document.addEventListener('contextmenu', function (e) {
-    e.preventDefault();
-    e.stopPropagation();
-    _showAccessDenied();
-    return false;
-  }, true);
-
-  /* ── 2. AUTH STATE RESET (sign-out → sign-in forces reload) ── */
+  var cx = ['fasahatalhasan@gmail.com'];
+  function mx(uid) { return 'user_' + (uid || 'anon').slice(0, 8); }
 
   var _authPrev = undefined;
-  var _authWasSignedIn = false;
+  function _isAdmin() {
+    var user = window.__FIREBASE_USER__ || window.__USER__;
+    if (!user) return false;
+    if (user.email && user.email.toLowerCase() === cx[0]) return true;
+    return false;
+  }
 
-  var _authWatcher = setInterval(function () {
+  window.addEventListener('auth-changed', function () {
     var cur = window.__FIREBASE_USER__;
     if (cur === undefined) return;
-
     if (_authPrev === undefined) {
       _authPrev = cur;
-      _authWasSignedIn = !!cur;
       return;
     }
-
-    if (_authWasSignedIn && !cur) {
-      _authWasSignedIn = false;
-      try {
-        localStorage.removeItem('fh_user_roles');
-        localStorage.removeItem('fh_banned_users');
-        localStorage.removeItem('fas_premium');
-      } catch (e) {}
-    }
-
-    if (!_authWasSignedIn && cur && _authPrev !== undefined) {
-      clearInterval(_authWatcher);
-      window.location.reload();
-      return;
-    }
-
+    var wasLoggedIn = !!_authPrev;
+    var isLoggedIn = !!cur;
     _authPrev = cur;
-    _authWasSignedIn = !!cur;
-  }, 600);
-
-  /* ── 3. LOADING-STATE FIX ── */
+    if (wasLoggedIn && !isLoggedIn) {
+      console.log('[Galaxy Annihilating CHS Lab] Logged out, reloading');
+      window.location.reload();
+    }
+  });
 
   setTimeout(function () {
     if (window.__FIREBASE_USER__ === undefined) {
@@ -3914,282 +5210,1956 @@
     }
   }, 8000);
 
-  /* =========================================================
-     GAME PROGRESS SAVING
-     When signed in, syncs favorites + last-played + play time
-     to Firestore players/{uid} so progress is never lost.
-     Play time is saved every 10 seconds while a game is open.
-  ========================================================= */
-  (function () {
-    var _gpDebTimer = null;
-    var _gpPlayStart = null;
-    var _gpCurGame = null;
-    var _gpAutoSaveTimer = null;  // 10-second interval handle
-    var _gpStoredTotal = 0;       // seconds in Firestore at game-open time
-    var _gpAccumulated = 0;       // seconds added this session (not yet persisted)
-    var _gpLastSaveTs = 0;        // Date.now() of the last flush
-
-    function _gpUser() { return window.__FIREBASE_USER__ || window.__USER__ || null; }
-
-    function _gpFbReady() {
-      return !!(window.db && window.fsSetDoc && window.fsDoc && window.fsGetDoc);
-    }
-
-    // ── localStorage helpers for offline game save ─────────
-    function _gpLocalSave(game, totalSeconds) {
+  setTimeout(function () {
+    if (window.__FIREBASE_USER__ === undefined) {
+      window.__FIREBASE_USER__ = null;
       try {
-        var existing = {};
-        try { existing = JSON.parse(localStorage.getItem('fas_game_playtime') || '{}'); } catch(e) {}
-        var fk = _gpFieldKey(game.url);
-        existing[fk] = { title: game.title, url: game.url, seconds: totalSeconds, updated: Date.now() };
-        localStorage.setItem('fas_game_playtime', JSON.stringify(existing));
-      } catch(e) {}
+        window.dispatchEvent(new CustomEvent('auth-changed', { detail: null }));
+      } catch (e) {}
     }
+  }, 12000);
+})();
 
-    function _gpLocalSaveLastPlayed(game) {
-      try {
-        localStorage.setItem('fas_last_played_game', JSON.stringify({ title: game.title, url: game.url, timestamp: Date.now() }));
-      } catch(e) {}
-    }
+/* ================================================================
+     DM SEARCH — body-level overlay (outside React tree)
+     Glass blur matching DMsHub + slide/fade animation
+  ================================================================ */
+(function(){
+  var players = null;
+  var myUid = '', myName = '', myPhoto = '';
 
-    // ── Debounced favorites write ──────────────────────────
-    function _gpSaveFavs(favsArray) {
-      var user = _gpUser();
-      if (!user || !user.uid || !_gpFbReady()) return;
-      clearTimeout(_gpDebTimer);
-      _gpDebTimer = setTimeout(function () {
-        try {
-          window.fsSetDoc(
-            window.fsDoc(window.db, 'players', user.uid),
-            { gameFavorites: favsArray },
-            { merge: true }
-          );
-        } catch (e) {}
-      }, 1500);
-    }
+  function capture() {
+    var u = window.__FIREBASE_USER__ || window.__USER__;
+    if (u) { myUid = u.uid||''; myName = u.displayName||u.email||''; myPhoto = u.photoURL||''; }
+  }
+  capture();
+  window.addEventListener('auth-changed', capture);
 
-    // ── Load favorites from Firestore and merge with local ─
-    function _gpLoadFavs() {
-      var user = _gpUser();
-      if (!user || !user.uid || !_gpFbReady()) return;
-      window.fsGetDoc(window.fsDoc(window.db, 'players', user.uid))
-        .then(function (doc) {
-          if (!doc.exists()) return;
-          var remote = (doc.data() || {}).gameFavorites;
-          if (!Array.isArray(remote) || !remote.length) return;
-          var local = [];
-          try { local = JSON.parse(localStorage.getItem('fas_favorites') || '[]'); } catch {}
-          if (!Array.isArray(local)) local = [];
-          var merged = Array.from(new Set(remote.concat(local)));
-          // Only update if different — avoids infinite loop
-          if (JSON.stringify(merged) !== JSON.stringify(local)) {
-            try {
-              // Write directly without triggering our interceptor again
-              Object.getPrototypeOf(localStorage).setItem.call(localStorage, 'fas_favorites', JSON.stringify(merged));
-              window.dispatchEvent(new StorageEvent('storage', { key: 'fas_favorites', newValue: JSON.stringify(merged) }));
-            } catch (e) {}
-          }
-        })
-        .catch(function () {});
-    }
-
-    // ── Intercept localStorage.setItem to catch favorites ─
-    var _origLSSet = Object.getPrototypeOf(localStorage).setItem;
-    try {
-      var _hooked = false;
-      Object.defineProperty(localStorage, 'setItem', {
-        configurable: true,
-        enumerable: false,
-        value: function (key, value) {
-          _origLSSet.call(localStorage, key, value);
-          if (key === 'fas_favorites' && !_hooked) {
-            var user = _gpUser();
-            if (user && user.uid) {
-              try { _gpSaveFavs(JSON.parse(value)); } catch {}
-            }
+  function loadPlayers() {
+    if (!window.fsGetDocs || !window.fsCollection || !window.db) return;
+    if (players) return;
+    window.fsGetDocs(window.fsCollection(window.db, 'players')).then(function(snap) {
+      players = [];
+      snap.forEach(function(d) {
+        var data = d.data();
+        if (data && d.id !== myUid) {
+          var name = data.displayName || data.name || data.username || '';
+          if (name && name.indexOf('User ') !== 0) {
+            players.push({ uid: d.id, name: name, photo: data.photoURL || data.photo || '' });
           }
         }
       });
-    } catch (e) {}
-
-    // ── Safe Firestore field key from URL ─────────────────
-    function _gpFieldKey(url) {
-      return (url || 'unknown').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 80);
-    }
-
-    // ── Write accumulated play time to Firestore + localStorage ───
-    function _gpFlushTime() {
-      if (!_gpCurGame) return;
-      var total = _gpStoredTotal + _gpAccumulated;
-      if (total < 1) return;
-
-      // Always save to localStorage (works without Firebase)
-      _gpLocalSave(_gpCurGame, total);
-
-      // Also save to Firestore if available
-      if (!_gpFbReady()) return;
-      var user = _gpUser();
-      if (!user || !user.uid) return;
-      var fk = _gpFieldKey(_gpCurGame.url);
-      var update = { gamePlayTime: {} };
-      update.gamePlayTime[fk] = total;
-      try {
-        window.fsSetDoc(
-          window.fsDoc(window.db, 'players', user.uid),
-          update,
-          { merge: true }
-        );
-      } catch (e) {}
-    }
-
-    // ── Record a game opening ──────────────────────────────
-    function _gpOnGameOpen(iframe) {
-      var src = iframe.src || '';
-      var hasSrcdoc = !!(iframe.srcdoc && iframe.srcdoc.length > 200);
-      if (!src && !hasSrcdoc) return;
-      if (src === 'about:blank') return;
-      // Skip the proxy/overlay iframes (not game iframes)
-      if (iframe.id && (iframe.id.startsWith('fas-pov-') || iframe.id === 'proxy-frame' || iframe.id === 'proxy-iframe' || iframe.id === 'fas-ov-frame' || iframe.id === 'fas-main-overlay')) return;
-
-      // Ignore if a game is already tracked (avoid duplicates)
-      if (_gpCurGame) return;
-
-      // Try to grab the game title from nearby heading
-      var title = '';
-      try {
-        var container = iframe.closest('[role="dialog"]') || iframe.parentElement;
-        for (var depth = 0; depth < 5 && container; depth++) {
-          var heading = container.querySelector('h1,h2,h3');
-          if (heading) { title = heading.textContent.trim(); break; }
-          container = container.parentElement;
-        }
-      } catch (e) {}
-      if (!title && src) {
-        try {
-          var parts = new URL(src).pathname.split('/').filter(Boolean);
-          title = (parts[parts.length - 1] || parts[0] || 'Game').replace(/[._-]+/g, ' ').replace(/\.html?$/i, '');
-        } catch (e) {}
-      }
-      if (!title) title = 'Game';
-
-      _gpCurGame = { title: title, url: src || 'srcdoc', ts: Date.now() };
-      _gpPlayStart = Date.now();
-      _gpLastSaveTs = Date.now();
-      _gpAccumulated = 0;
-      _gpStoredTotal = 0;
-
-      // Always save last-played to localStorage immediately
-      _gpLocalSaveLastPlayed(_gpCurGame);
-
-      // Load stored total from localStorage as a fallback base
-      try {
-        var lsData = JSON.parse(localStorage.getItem('fas_game_playtime') || '{}');
-        var lsFk = _gpFieldKey(_gpCurGame.url);
-        _gpStoredTotal = Number((lsData[lsFk] || {}).seconds || 0);
-      } catch(e) {}
-
-      var user = _gpUser();
-      if (user && user.uid && _gpFbReady()) {
-        // Save last-played game to Firestore
-        try {
-          window.fsSetDoc(
-            window.fsDoc(window.db, 'players', user.uid),
-            { lastPlayedGame: { title: title, url: _gpCurGame.url, timestamp: Date.now() } },
-            { merge: true }
-          );
-        } catch (e) {}
-        // Load the stored play-time total from Firestore (may be higher than localStorage)
-        var fk = _gpFieldKey(_gpCurGame.url);
-        window.fsGetDoc(window.fsDoc(window.db, 'players', user.uid))
-          .then(function (doc) {
-            if (doc.exists()) {
-              var fbTotal = Number(((doc.data() || {}).gamePlayTime || {})[fk] || 0);
-              // Use the higher of the two (localStorage vs Firestore)
-              if (fbTotal > _gpStoredTotal) _gpStoredTotal = fbTotal;
-            }
-          })
-          .catch(function () {});
-      }
-
-      // ── 10-second autosave interval ────────────────────
-      clearInterval(_gpAutoSaveTimer);
-      _gpAutoSaveTimer = setInterval(function () {
-        if (!_gpCurGame) { clearInterval(_gpAutoSaveTimer); return; }
-        var now = Date.now();
-        var delta = Math.round((now - _gpLastSaveTs) / 1000);
-        _gpLastSaveTs = now;
-        if (delta > 0) {
-          _gpAccumulated += delta;
-          _gpFlushTime();
-        }
-      }, 10000);
-    }
-
-    // ── Record play time when game iframe disappears ───────
-    function _gpOnGameClose() {
-      if (!_gpCurGame) return;
-
-      // Stop the autosave interval
-      clearInterval(_gpAutoSaveTimer);
-      _gpAutoSaveTimer = null;
-
-      // Flush any remaining seconds since the last 10s tick
-      var remaining = Math.round((Date.now() - _gpLastSaveTs) / 1000);
-      if (remaining > 0) _gpAccumulated += remaining;
-
-      if (_gpAccumulated >= 5) _gpFlushTime(); // ignore <5s sessions
-
-      _gpPlayStart = null;
-      _gpCurGame = null;
-      _gpAccumulated = 0;
-      _gpStoredTotal = 0;
-      _gpLastSaveTs = 0;
-    }
-
-    // ── MutationObserver: detect game iframes ──────────────
-    var _gpMO = new MutationObserver(function (muts) {
-      for (var i = 0; i < muts.length; i++) {
-        var m = muts[i];
-        for (var j = 0; j < m.addedNodes.length; j++) {
-          var n = m.addedNodes[j];
-          if (n.nodeType !== 1) continue;
-          var frames = n.tagName === 'IFRAME' ? [n] : Array.from(n.querySelectorAll('iframe'));
-          frames.forEach(function (f) { _gpOnGameOpen(f); });
-        }
-        for (var j = 0; j < m.removedNodes.length; j++) {
-          var n = m.removedNodes[j];
-          if (n.nodeType !== 1) continue;
-          var hadFrame = n.tagName === 'IFRAME' || n.querySelector('iframe');
-          if (hadFrame) _gpOnGameClose();
-        }
+      players.sort(function(a,b) { return a.name.localeCompare(b.name); });
+      console.log('[inject] DM overlay: loaded ' + players.length + ' players');
+    }).catch(function(e) {
+      // Don't retry forever — denied/timeout reads burn Firestore quota.
+      // Give up after a few tries so the retry loop stops.
+      players = players || [];
+      if (!loadPlayers.failures) loadPlayers.failures = 0;
+      loadPlayers.failures++;
+      if (loadPlayers.failures >= 3) {
+        players = [];
+        console.warn('[inject] DM overlay: giving up on player load after ' + loadPlayers.failures + ' failures', e.code || e.message);
       }
     });
-    _gpMO.observe(document.body, { childList: true, subtree: true });
+  }
 
-    // ── Load favorites once Firebase + auth are ready ──────
-    function _gpInit() {
-      if (!_gpFbReady()) {
-        var _t = setInterval(function () {
-          if (_gpFbReady()) { clearInterval(_t); _gpInit(); }
-        }, 600);
-        return;
-      }
-      var user = _gpUser();
-      if (user && user.uid) { _gpLoadFavs(); return; }
-      // Wait for auth to resolve
-      var _authPoll = setInterval(function () {
-        if (window.__FIREBASE_USER__ !== undefined) {
-          clearInterval(_authPoll);
-          var u = _gpUser();
-          if (u && u.uid) _gpLoadFavs();
-        }
-      }, 600);
-      setTimeout(function () { clearInterval(_authPoll); }, 20000);
+  setInterval(function() {
+    if (players === null && window.fsGetDocs && window.fsCollection && window.db) loadPlayers();
+  }, 2000);
+  loadPlayers();
+
+  var overlayActive = false;
+
+  /* Inject keyframes once */
+  var kfSheet = document.createElement('style');
+  kfSheet.textContent =
+    '@keyframes fasOverlayIn{' +
+      'from{opacity:0;backdrop-filter:blur(0px);-webkit-backdrop-filter:blur(0px);}' +
+      'to{opacity:1;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);}' +
+    '}' +
+    '@keyframes fasOverlayOut{' +
+      'from{opacity:1;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);}' +
+      'to{opacity:0;backdrop-filter:blur(0px);-webkit-backdrop-filter:blur(0px);}' +
+    '}' +
+    '@keyframes fasPanelIn{' +
+      'from{opacity:0;transform:translateY(20px) scale(0.97);}' +
+      'to{opacity:1;transform:translateY(0) scale(1);}' +
+    '}' +
+    '@keyframes fasPanelOut{' +
+      'from{opacity:1;transform:translateY(0) scale(1);}' +
+      'to{opacity:0;transform:translateY(20px) scale(0.97);}' +
+    '}';
+  document.head.appendChild(kfSheet);
+
+  function openOverlay() {
+    if (overlayActive) return;
+    if (!players || players.length === 0) {
+      loadPlayers();
+      setTimeout(openOverlay, 500);
+      return;
+    }
+    overlayActive = true;
+
+    var old = document.getElementById('fas-dm-search-overlay');
+    if (old) old.remove();
+
+    /* Backdrop — glass blur matching DMsHub */
+    var overlay = document.createElement('div');
+    overlay.id = 'fas-dm-search-overlay';
+    overlay.style.cssText =
+      'position:fixed!important;inset:0!important;z-index:9999999!important;' +
+      'background:rgba(0,0,0,0.4)!important;' +
+      'backdrop-filter:blur(24px)!important;-webkit-backdrop-filter:blur(24px)!important;' +
+      'display:flex!important;align-items:center!important;justify-content:center!important;' +
+      'font-family:system-ui,-apple-system,sans-serif!important;' +
+      'animation:fasOverlayIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards!important;';
+
+    /* Inner panel — glass card */
+    var panel = document.createElement('div');
+    panel.style.cssText =
+      'width:90%;max-width:420px;max-height:80vh;' +
+      'background:rgba(20,16,32,0.75)!important;' +
+      'backdrop-filter:blur(24px)!important;-webkit-backdrop-filter:blur(24px)!important;' +
+      'border:1px solid rgba(255,255,255,0.1)!important;' +
+      'border-radius:16px!important;' +
+      'display:flex!important;flex-direction:column!important;' +
+      'overflow:hidden!important;' +
+      'animation:fasPanelIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards!important;' +
+      'box-shadow:0 25px 60px rgba(0,0,0,0.5),0 0 0 1px rgba(167,139,250,0.1)!important;';
+
+    /* Header row */
+    var header = document.createElement('div');
+    header.style.cssText =
+      'display:flex!important;align-items:center!important;gap:10px!important;' +
+      'padding:14px 16px!important;border-bottom:1px solid rgba(255,255,255,0.07)!important;';
+
+    var title = document.createElement('span');
+    title.textContent = 'New DM';
+    title.style.cssText =
+      'color:#fff!important;font-size:14px!important;font-weight:700!important;' +
+      'letter-spacing:0.02em!important;flex:1!important;';
+
+    header.appendChild(title);
+
+    /* Search input */
+    var inputWrap = document.createElement('div');
+    inputWrap.style.cssText = 'padding:12px 16px 8px!important;';
+
+    var input = document.createElement('input');
+    input.placeholder = 'Search by name...';
+    input.style.cssText =
+      'width:100%!important;background:rgba(255,255,255,0.06)!important;color:#fff!important;' +
+      'border:1px solid rgba(255,255,255,0.08)!important;border-radius:10px!important;' +
+      'padding:10px 14px 10px 36px!important;font-size:13px!important;outline:none!important;' +
+      'box-sizing:border-box!important;transition:border-color 0.2s ease,background 0.2s ease!important;';
+    input.onfocus = function(){
+      input.style.borderColor='rgba(167,139,250,0.4)';
+      input.style.background='rgba(255,255,255,0.08)';
+    };
+    input.onblur = function(){
+      input.style.borderColor='rgba(255,255,255,0.08)';
+      input.style.background='rgba(255,255,255,0.06)';
+    };
+
+    /* Search icon */
+    var searchIcon = document.createElement('div');
+    searchIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>';
+    searchIcon.style.cssText =
+      'position:absolute!important;left:28px!important;top:50%!important;transform:translateY(-50%)!important;pointer-events:none!important;';
+
+    var inputContainer = document.createElement('div');
+    inputContainer.style.cssText = 'position:relative!important;';
+    inputContainer.appendChild(searchIcon);
+    inputContainer.appendChild(input);
+    inputWrap.appendChild(inputContainer);
+
+    /* Results list */
+    var results = document.createElement('div');
+    results.style.cssText = 'flex:1!important;overflow-y:auto!important;padding:4px 12px 12px!important;';
+    results.className = 'fas-dm-results';
+
+    /* Custom scrollbar */
+    var ss = document.createElement('style');
+    ss.textContent =
+      '.fas-dm-results::-webkit-scrollbar{width:4px!important;}' +
+      '.fas-dm-results::-webkit-scrollbar-track{background:transparent!important;}' +
+      '.fas-dm-results::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1)!important;border-radius:4px!important;}' +
+      '.fas-dm-results::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2)!important;}';
+    document.head.appendChild(ss);
+
+    panel.appendChild(header);
+    panel.appendChild(inputWrap);
+    panel.appendChild(results);
+    overlay.appendChild(panel);
+
+    /* Close on backdrop click */
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) closeOverlay();
+    });
+
+    /* Close on Escape */
+    function onKey(e) {
+      if (e.key === 'Escape') { closeOverlay(); document.removeEventListener('keydown', onKey); }
+    }
+    document.addEventListener('keydown', onKey);
+
+    function closeOverlay() {
+      overlay.style.animation = 'fasOverlayOut 0.25s cubic-bezier(0.4,0,0.2,1) forwards';
+      panel.style.animation = 'fasPanelOut 0.2s cubic-bezier(0.4,0,0.2,1) forwards';
+      setTimeout(function() {
+        overlay.remove();
+        ss.remove();
+        overlayActive = false;
+      }, 280);
     }
 
-    _gpInit();
-  })();
+    function renderList(q) {
+      results.innerHTML = '';
+      var list = players;
+      if (q) {
+        var ql = q.toLowerCase();
+        list = players.filter(function(p) { return p.name.toLowerCase().indexOf(ql) >= 0; });
+      }
+      if (list.length === 0) {
+        var empty = document.createElement('div');
+        empty.style.cssText = 'text-align:center!important;color:rgba(255,255,255,0.25)!important;padding:30px 0!important;font-size:13px!important;';
+        empty.textContent = 'No users found';
+        results.appendChild(empty);
+        return;
+      }
+      list.forEach(function(p, idx) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.style.cssText =
+          'width:100%!important;display:flex!important;align-items:center!important;gap:12px!important;' +
+          'padding:10px 12px!important;border-radius:10px!important;' +
+          'background:transparent!important;border:1px solid transparent!important;' +
+          'cursor:pointer!important;color:#fff!important;font-size:13px!important;text-align:left!important;' +
+          'transition:all 0.15s ease!important;' +
+          'animation:fasPanelIn 0.3s cubic-bezier(0.16,1,0.3,1) ' + (idx * 0.02) + 's both!important;';
+        btn.onmouseenter = function(){
+          btn.style.background='rgba(255,255,255,0.06)';
+          btn.style.borderColor='rgba(255,255,255,0.07)';
+        };
+        btn.onmouseleave = function(){
+          btn.style.background='transparent';
+          btn.style.borderColor='transparent';
+        };
 
+        var img = document.createElement('img');
+        img.src = p.photo;
+        img.style.cssText =
+          'width:36px!important;height:36px!important;border-radius:50%!important;' +
+          'object-fit:cover!important;background:#333!important;flex-shrink:0!important;';
+        img.onerror = function(){ this.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name) + '&background=random&color=fff&size=72'; };
+
+        var nameSpan = document.createElement('span');
+        nameSpan.textContent = p.name;
+
+        btn.appendChild(img);
+        btn.appendChild(nameSpan);
+        btn.onclick = async function() {
+          try {
+            if (!window.fsGetDocs || !window.fsQuery || !window.fsCollection || !window.fsWhere || !window.db || !window.fsAddDoc || !window.fsServerTimestamp) {
+              console.error('[inject] Missing Firestore globals');
+              return;
+            }
+            var convSnap = await window.fsGetDocs(
+              window.fsQuery(
+                window.fsCollection(window.db, 'conversations'),
+                window.fsWhere('participants', 'array-contains', myUid)
+              )
+            );
+            var existing = null;
+            convSnap.forEach(function(cd) {
+              var md = cd.data();
+              if (md && md.participants && md.participants.indexOf(p.uid) >= 0) existing = cd;
+            });
+            if (existing) { closeOverlay(); return; }
+            var doc = {
+              participants: [myUid, p.uid],
+              lastMessage: 'Chat started',
+              lastTime: window.fsServerTimestamp(),
+              isGroup: false
+            };
+            doc['name_' + myUid] = myName || 'User';
+            doc['name_' + p.uid] = p.name;
+            doc['photo_' + myUid] = myPhoto || '';
+            doc['photo_' + p.uid] = p.photo || '';
+            await window.fsAddDoc(window.fsCollection(window.db, 'conversations'), doc);
+            console.log('[inject] DM created with ' + p.name);
+          } catch(e) { console.error('[inject] DM create error', e); }
+          closeOverlay();
+        };
+        results.appendChild(btn);
+      });
+    }
+
+    input.addEventListener('input', function() { renderList(input.value); });
+    renderList('');
+    document.body.appendChild(overlay);
+    setTimeout(function(){ input.focus(); }, 50);
+  }
+
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest && e.target.closest('button');
+    if (!btn) return;
+    var txt = (btn.textContent || '').trim();
+    if (txt.indexOf('New DM') >= 0 || txt.indexOf('New Group') >= 0) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      if (txt.indexOf('New DM') >= 0) {
+        setTimeout(openOverlay, 0);
+      }
+    }
+  }, true);
+
+  var style = document.createElement('style');
+  style.textContent = '/*fas-dm-hide*/' +
+    '#fas-dm-search-overlay ~ div input[placeholder="Search by name..."],' +
+    'div > div > div input[placeholder="Search by name..."]:not(#fas-dm-search-overlay input) { display:none!important; }';
+  document.head.appendChild(style);
+})();
+
+/* ================================================================
+     CUSTOM CALL UI OVERLAY
+     Replaces DMsHub's call panel with a polished Discord-like UI:
+     - Voice call: centered profile picture + call controls
+     - Video call: large remote video + small self-view corner
+     - Group video call: grid of video feeds
+  ================================================================ */
+(function(){
+  var callActive = false;
+  var callOverlay = null;
+  var callTimer = null;
+  var callStartTime = 0;
+  var pollInterval = null;
+  var lastCallJson = '';
+
+  /* Hide DMsHub's native call panel */
+  var callHideStyle = document.createElement('style');
+  callHideStyle.id = 'fas-call-hide-css';
+  callHideStyle.textContent =
+    '/* Hide DMsHub native call panel */' +
+    '[class*="fixed inset-0 z-[4"]{display:none!important;}';
+  document.head.appendChild(callHideStyle);
+
+  function injectCallCSS() {
+    if (document.getElementById('fas-call-ui-css')) return;
+    var s = document.createElement('style');
+    s.id = 'fas-call-ui-css';
+    s.textContent =
+      '@keyframes fasCallIn{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}' +
+      '@keyframes fasCallPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,0.4)}50%{box-shadow:0 0 0 12px rgba(34,197,94,0)}}' +
+      '@keyframes fasCallFade{from{opacity:0}to{opacity:1}}' +
+      '.fas-call-video{object-fit:cover;width:100%;height:100%;border-radius:12px;}' +
+      '.fas-call-video-self{object-fit:cover;width:100%;height:100%;border-radius:10px;}' +
+      '.fas-call-ctrl{transition:all 0.2s ease}' +
+      '.fas-call-ctrl:hover{transform:scale(1.08)}' +
+      '.fas-call-ctrl:active{transform:scale(0.95)}' +
+      '.fas-call-ctrl-red{background:rgba(239,68,68,0.9);box-shadow:0 4px 20px rgba(239,68,68,0.4)}' +
+      '.fas-call-ctrl-red:hover{background:rgba(239,68,68,1)}' +
+      '.fas-call-ctrl-muted{background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.4)}';
+    document.head.appendChild(s);
+  }
+
+  function formatDuration(ms) {
+    var s = Math.floor(ms / 1000);
+    var m = Math.floor(s / 60);
+    var h = Math.floor(m / 60);
+    s = s % 60; m = m % 60;
+    if (h > 0) return h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+    return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  }
+
+  function getCallInfo() {
+    /* Try to read DMsHub's call state from the DOM */
+    var panel = document.querySelector('[class*="fixed inset-0"][class*="z-[4"]');
+    if (!panel) return null;
+    /* Look for peer name, call type, status */
+    var nameEl = panel.querySelector('h2, [class*="font-bold"][class*="text-white"]');
+    var name = nameEl ? nameEl.textContent : '';
+    /* Check for video elements */
+    var videos = panel.querySelectorAll('video');
+    /* Check for status text */
+    var statusEl = panel.querySelector('[class*="text-white/50"]');
+    var status = statusEl ? statusEl.textContent : '';
+    var isVideo = false;
+    /* Look for camera button to determine video call */
+    var btns = panel.querySelectorAll('button');
+    for (var i = 0; i < btns.length; i++) {
+      var t = btns[i].getAttribute('title') || '';
+      if (t.indexOf('Camera') >= 0) { isVideo = true; break; }
+    }
+    return { name: name, status: status, videos: videos, isVideo: isVideo, panel: panel, btns: btns };
+  }
+
+  function buildCallOverlay(info) {
+    injectCallCSS();
+    if (callOverlay) callOverlay.remove();
+
+    var isGroup = info.name.indexOf('Group') >= 0;
+    var isVideo = info.isVideo;
+    var isAnswered = info.status.indexOf('Connected') >= 0 || info.status.indexOf('connected') >= 0;
+
+    callOverlay = document.createElement('div');
+    callOverlay.id = 'fas-call-overlay';
+    callOverlay.style.cssText =
+      'position:fixed!important;inset:0!important;z-index:9999998!important;' +
+      'background:linear-gradient(180deg,#0a0814 0%,#0f0a1e 50%,#0a0814 100%)!important;' +
+      'display:flex!important;flex-direction:column!important;' +
+      'font-family:system-ui,-apple-system,sans-serif!important;' +
+      'animation:fasCallIn 0.3s ease!important;';
+
+    /* Top bar */
+    var topBar = document.createElement('div');
+    topBar.style.cssText =
+      'display:flex!important;align-items:center!important;padding:16px 20px!important;' +
+      'background:rgba(0,0,0,0.3)!important;backdrop-filter:blur(20px)!important;' +
+      'border-bottom:1px solid rgba(255,255,255,0.05)!important;';
+
+    var statusDot = document.createElement('div');
+    statusDot.style.cssText =
+      'width:8px!important;height:8px!important;border-radius:50%!important;' +
+      (isAnswered ? 'background:#22c55e!important;animation:fasCallPulse 2s ease infinite!important;' : 'background:#f59e0b!important;');
+
+    var topInfo = document.createElement('div');
+    topInfo.style.cssText = 'flex:1!important;margin-left:12px!important;';
+
+    var topName = document.createElement('div');
+    topName.textContent = info.name || 'Unknown';
+    topName.style.cssText = 'color:#fff!important;font-size:14px!important;font-weight:700!important;';
+
+    var topStatus = document.createElement('div');
+    topStatus.style.cssText = 'color:rgba(255,255,255,0.4)!important;font-size:11px!important;margin-top:2px!important;';
+    topStatus.textContent = isAnswered ? 'Connected' : 'Calling...';
+
+    topInfo.appendChild(topName);
+    topInfo.appendChild(topStatus);
+    topBar.appendChild(statusDot);
+    topBar.appendChild(topInfo);
+
+    if (isAnswered && callStartTime > 0) {
+      var timer = document.createElement('div');
+      timer.id = 'fas-call-timer';
+      timer.style.cssText = 'color:rgba(255,255,255,0.5)!important;font-size:12px!important;font-variant-numeric:tabular-nums!important;';
+      timer.textContent = '00:00';
+      topBar.appendChild(timer);
+    }
+
+    /* Main content area */
+    var main = document.createElement('div');
+    main.style.cssText = 'flex:1!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:20px!important;overflow:hidden!important;position:relative!important;';
+
+    if (isVideo) {
+      /* VIDEO CALL — remote video center, self-view corner */
+      main.style.flexDirection = 'column';
+
+      var remoteContainer = document.createElement('div');
+      remoteContainer.id = 'fas-call-remote-video';
+      remoteContainer.style.cssText =
+        'flex:1!important;width:100%!important;position:relative!important;' +
+        'border-radius:16px!important;overflow:hidden!important;' +
+        'background:rgba(255,255,255,0.02)!important;border:1px solid rgba(255,255,255,0.05)!important;';
+
+      var selfContainer = document.createElement('div');
+      selfContainer.id = 'fas-call-self-video';
+      selfContainer.style.cssText =
+        'position:absolute!important;bottom:20px!important;right:20px!important;' +
+        'width:180px!important;height:120px!important;z-index:2!important;' +
+        'border-radius:12px!important;overflow:hidden!important;' +
+        'border:2px solid rgba(255,255,255,0.15)!important;' +
+        'box-shadow:0 8px 30px rgba(0,0,0,0.5)!important;' +
+        'background:#111!important;';
+
+      main.appendChild(remoteContainer);
+      main.appendChild(selfContainer);
+    } else {
+      /* VOICE CALL — centered profile picture */
+      var pfpWrap = document.createElement('div');
+      pfpWrap.style.cssText =
+        'display:flex!important;flex-direction:column!important;align-items:center!important;gap:20px!important;';
+
+      var pfpRing = document.createElement('div');
+      pfpRing.style.cssText =
+        'width:140px!important;height:140px!important;border-radius:50%!important;' +
+        'background:rgba(167,139,250,0.1)!important;' +
+        'display:flex!important;align-items:center!important;justify-content:center!important;' +
+        'position:relative!important;';
+      if (isAnswered) {
+        pfpRing.style.animation = 'fasCallPulse 2s ease infinite';
+      }
+
+      var pfpInner = document.createElement('div');
+      pfpInner.style.cssText =
+        'width:120px!important;height:120px!important;border-radius:50%!important;' +
+        'overflow:hidden!important;background:#1a1530!important;' +
+        'display:flex!important;align-items:center!important;justify-content:center!important;';
+
+      /* Find peer photo from DMsHub's panel */
+      var peerImg = null;
+      var origPanel = info.panel;
+      if (origPanel) {
+        var imgs = origPanel.querySelectorAll('img');
+        for (var i = 0; i < imgs.length; i++) {
+          var src = imgs[i].src || '';
+          if (src && src.indexOf('ui-avatars') < 0 && src.indexOf('firebaseio') >= 0 || src.indexOf('googleusercontent') >= 0) {
+            peerImg = src;
+            break;
+          }
+        }
+      }
+
+      if (peerImg) {
+        var img = document.createElement('img');
+        img.src = peerImg;
+        img.style.cssText = 'width:100%!important;height:100%!important;object-fit:cover!important;';
+        pfpInner.appendChild(img);
+      } else {
+        var icon = document.createElement('div');
+        icon.innerHTML = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(167,139,250,0.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+        pfpInner.appendChild(icon);
+      }
+
+      pfpRing.appendChild(pfpInner);
+
+      var pfpName = document.createElement('div');
+      pfpName.textContent = info.name || 'Unknown';
+      pfpName.style.cssText =
+        'color:#fff!important;font-size:20px!important;font-weight:700!important;letter-spacing:0.01em!important;';
+
+      var pfpStatus = document.createElement('div');
+      pfpStatus.textContent = isAnswered ? 'Voice Call' : 'Calling...';
+      pfpStatus.style.cssText =
+        'color:rgba(255,255,255,0.4)!important;font-size:13px!important;';
+
+      pfpWrap.appendChild(pfpRing);
+      pfpWrap.appendChild(pfpName);
+      pfpWrap.appendChild(pfpStatus);
+      main.appendChild(pfpWrap);
+    }
+
+    /* Bottom controls */
+    var controls = document.createElement('div');
+    controls.style.cssText =
+      'display:flex!important;align-items:center!important;justify-content:center!important;gap:16px!important;' +
+      'padding:20px!important;background:rgba(0,0,0,0.4)!important;' +
+      'backdrop-filter:blur(20px)!important;border-top:1px solid rgba(255,255,255,0.05)!important;';
+
+    /* Mute button */
+    var muteBtn = document.createElement('button');
+    muteBtn.className = 'fas-call-ctrl';
+    muteBtn.title = 'Mute';
+    muteBtn.style.cssText =
+      'width:48px!important;height:48px!important;border-radius:50%!important;' +
+      'background:rgba(255,255,255,0.1)!important;border:1px solid rgba(255,255,255,0.1)!important;' +
+      'display:flex!important;align-items:center!important;justify-content:center!important;' +
+      'cursor:pointer!important;color:#fff!important;transition:all 0.2s ease!important;';
+    muteBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>';
+    var muted = false;
+    muteBtn.onclick = function() {
+      muted = !muted;
+      muteBtn.style.background = muted ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.1)';
+      muteBtn.style.borderColor = muted ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.1)';
+      /* Toggle actual mute on DMsHub's button */
+      var origPanel = info.panel;
+      if (origPanel) {
+        var allBtns = origPanel.querySelectorAll('button');
+        for (var i = 0; i < allBtns.length; i++) {
+          var t = allBtns[i].getAttribute('title') || '';
+          if ((t === 'Unmute' || t === 'Mute') && allBtns[i].offsetParent !== null) {
+            allBtns[i].click(); break;
+          }
+        }
+      }
+    };
+
+    /* Camera button (video only) */
+    var camBtn = null;
+    if (isVideo) {
+      camBtn = document.createElement('button');
+      camBtn.className = 'fas-call-ctrl';
+      camBtn.title = 'Camera';
+      camBtn.style.cssText = muteBtn.style.cssText;
+      camBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>';
+      var camOff = false;
+      camBtn.onclick = function() {
+        camOff = !camOff;
+        camBtn.style.background = camOff ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.1)';
+        camBtn.style.borderColor = camOff ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.1)';
+        var origPanel = info.panel;
+        if (origPanel) {
+          var allBtns = origPanel.querySelectorAll('button');
+          for (var i = 0; i < allBtns.length; i++) {
+            var t = allBtns[i].getAttribute('title') || '';
+            if ((t === 'Camera on' || t === 'Camera off') && allBtns[i].offsetParent !== null) {
+              allBtns[i].click(); break;
+            }
+          }
+        }
+      };
+    }
+
+    /* End call button */
+    var endBtn = document.createElement('button');
+    endBtn.className = 'fas-call-ctrl fas-call-ctrl-red';
+    endBtn.title = 'End call';
+    endBtn.style.cssText =
+      'width:56px!important;height:56px!important;border-radius:50%!important;' +
+      'display:flex!important;align-items:center!important;justify-content:center!important;' +
+      'cursor:pointer!important;color:#fff!important;border:none!important;' +
+      'transition:all 0.2s ease!important;';
+    endBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="23" x2="1" y1="1" y2="23"/></svg>';
+    endBtn.onclick = function() {
+      /* Click DMsHub's end call button */
+      var origPanel = info.panel;
+      if (origPanel) {
+        var allBtns = origPanel.querySelectorAll('button');
+        for (var i = 0; i < allBtns.length; i++) {
+          var t = allBtns[i].getAttribute('title') || '';
+          if (t === 'End call' && allBtns[i].offsetParent !== null) {
+            allBtns[i].click(); break;
+          }
+        }
+      }
+    };
+
+    controls.appendChild(muteBtn);
+    if (camBtn) controls.appendChild(camBtn);
+    controls.appendChild(endBtn);
+
+    callOverlay.appendChild(topBar);
+    callOverlay.appendChild(main);
+    callOverlay.appendChild(controls);
+
+    document.body.appendChild(callOverlay);
+
+    /* Move video elements from DMsHub's panel to our overlay */
+    if (isVideo) {
+      moveVideoElements(info);
+    }
+
+    /* Start timer */
+    if (isAnswered) {
+      callStartTime = Date.now();
+      callTimer = setInterval(function() {
+        var el = document.getElementById('fas-call-timer');
+        if (el) el.textContent = formatDuration(Date.now() - callStartTime);
+      }, 1000);
+    }
+  }
+
+  function moveVideoElements(info) {
+    var remoteContainer = document.getElementById('fas-call-remote-video');
+    var selfContainer = document.getElementById('fas-call-self-video');
+    if (!remoteContainer || !selfContainer || !info.panel) return;
+
+    var videos = info.panel.querySelectorAll('video');
+    var moved = 0;
+    for (var i = 0; i < videos.length; i++) {
+      var v = videos[i];
+      if (v.closest('#fas-call-overlay')) continue;
+      v.classList.add('fas-call-video');
+      if (moved === 0) {
+        remoteContainer.appendChild(v);
+      } else {
+        selfContainer.appendChild(v);
+      }
+      moved++;
+    }
+  }
+
+  function removeCallOverlay() {
+    callActive = false;
+    if (callTimer) { clearInterval(callTimer); callTimer = null; }
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+    callStartTime = 0;
+    lastCallJson = '';
+    if (callOverlay) {
+      callOverlay.style.opacity = '0';
+      callOverlay.style.transition = 'opacity 0.2s ease';
+      setTimeout(function() {
+        if (callOverlay) { callOverlay.remove(); callOverlay = null; }
+      }, 200);
+    }
+  }
+
+  /* Poll for DMsHub's call panel */
+  function startPolling() {
+    if (pollInterval) return;
+    pollInterval = setInterval(function() {
+      var panel = document.querySelector('[class*="fixed inset-0"][class*="z-[4"]');
+      if (panel && panel.offsetParent !== null) {
+        var info = getCallInfo();
+        if (info) {
+          var json = info.name + '|' + info.status + '|' + info.isVideo;
+          if (!callActive || json !== lastCallJson) {
+            callActive = true;
+            lastCallJson = json;
+            buildCallOverlay(info);
+          } else if (callOverlay && info.isVideo) {
+            /* Keep moving new video elements as React re-renders */
+            moveVideoElements(info);
+          }
+        }
+      } else if (callActive) {
+        removeCallOverlay();
+      }
+    }, 300);
+  }
+
+  /* Start polling when page loads */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startPolling);
+  } else {
+    startPolling();
+  }
+
+  /* Also restart on SPA navigation */
+  var lastHref = location.href;
+  setInterval(function() {
+    if (location.href !== lastHref) {
+      lastHref = location.href;
+      removeCallOverlay();
+      startPolling();
+    }
+  }, 1000);
+})();
+
+/* ================================================================
+     ADMIN ADVERTISEMENT MANAGER
+     Admin can set up to4 ads (image/gif/video) stored in Firestore
+     settings/site/ads. Ads display at top of home, movies, tv,
+     anime, manga, posts, and web pages.
+  ================================================================ */
+(function(){
+  console.log('[FAS] Ad Manager IIFE running');
+  var _adsKey = 'fas_site_ads';
+  var _adsEnabled = true;
+
+  function _isImageUrl(url) {
+    return /\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(url);
+  }
+  function _isVideoUrl(url) {
+    return /\.(mp4|webm|mov)(\?|$)/i.test(url);
+  }
+
+  /* Load ads from Firestore */
+  function loadAds() {
+    if (!window.fsGetDoc || !window.fsDoc || !window.db) return;
+    try {
+      window.fsGetDoc(window.fsDoc(window.db, 'settings', 'site')).then(function(doc) {
+        if (doc.exists()) {
+          var d = doc.data();
+          if (d.ads) {
+            try { sessionStorage.setItem(_adsKey, JSON.stringify(d.ads)); } catch(e) {}
+          }
+          if (d.adsEnabled === false) _adsEnabled = false;
+        }
+      }).catch(function() {});
+    } catch(e) {}
+  }
+
+  loadAds();
+  setInterval(loadAds, 30000);
+
+  function getAds() {
+    try {
+      var raw = sessionStorage.getItem(_adsKey);
+      if (raw) return JSON.parse(raw);
+    } catch(e) {}
+    return [];
+  }
+
+  function pickAd() {
+    var ads = getAds();
+    if (!ads.length || !_adsEnabled) return null;
+    /* Weighted random: if N ads, each has 1/N chance */
+    var idx = Math.floor(Math.random() * ads.length);
+    return ads[idx];
+  }
+
+  function injectAdBanner(pageType) {
+    if (!document.querySelector) return;
+    var ad = pickAd();
+    if (!ad || !ad.url) return;
+    if (document.getElementById('fas-ad-banner')) return;
+
+    var selectors = ['main', '[class*="max-w-"]', '#root > div > div'];
+    var target = null;
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i]);
+      if (el) { target = el; break; }
+    }
+    if (!target) return;
+
+    var banner = document.createElement('div');
+    banner.id = 'fas-ad-banner';
+    banner.style.cssText =
+      'width:100%!important;border-radius:12px!important;overflow:hidden!important;margin-bottom:16px!important;' +
+      'cursor:pointer!important;position:relative!important;background:transparent!important;' +
+      'max-height:400px!important;';
+
+    var closeBtn = document.createElement('button');
+    closeBtn.textContent = '\u00d7';
+    closeBtn.style.cssText =
+      'position:absolute!important;top:6px!important;right:6px!important;z-index:10!important;' +
+      'width:24px!important;height:24px!important;border-radius:50%!important;' +
+      'background:rgba(0,0,0,0.6)!important;color:#fff!important;border:none!important;' +
+      'font-size:14px!important;cursor:pointer!important;display:flex!important;align-items:center!important;justify-content:center!important;';
+    closeBtn.onclick = function(e) { e.stopPropagation(); banner.remove(); };
+
+    if (ad.type === 'video' || _isVideoUrl(ad.url)) {
+      var vid = document.createElement('video');
+      vid.src = ad.url;
+      vid.style.cssText = 'width:100%!important;max-height:400px!important;object-fit:contain!important;display:block!important;';
+      vid.muted = true;
+      vid.loop = true;
+      vid.autoplay = true;
+      vid.playsInline = true;
+      banner.appendChild(vid);
+    } else {
+      var img = document.createElement('img');
+      img.src = ad.url;
+      img.style.cssText = 'width:100%!important;max-height:400px!important;object-fit:contain!important;display:block!important;';
+      img.onerror = function() { banner.remove(); };
+      banner.appendChild(img);
+    }
+
+    if (ad.link) {
+      banner.onclick = function() { window.open(ad.link, '_blank'); };
+    }
+
+    banner.appendChild(closeBtn);
+    target.insertBefore(banner, target.firstChild);
+  }
+
+  /* Auto-inject on relevant pages */
+  setInterval(function() {
+    var hash = (location.hash || '').toLowerCase();
+    var href = (location.href || '').toLowerCase();
+    var isHome = hash === '' || hash === '#/' || hash === '#/home' || href.endsWith('/');
+    var isMovies = hash.indexOf('movie') >= 0;
+    var isTV = hash.indexOf('tv') >= 0 || hash.indexOf('show') >= 0;
+    var isAnime = hash.indexOf('anime') >= 0;
+    var isManga = hash.indexOf('manga') >= 0;
+    var isPosts = hash.indexOf('post') >= 0;
+    var isWeb = hash.indexOf('web') >= 0;
+    if (isHome || isMovies || isTV || isAnime || isManga || isPosts || isWeb) {
+      injectAdBanner();
+    }
+  }, 2000);
+
+  /* ADMIN TAB: Advertisement Manager */
+  window.__fas_renderAdTab = function(container) {
+    container.innerHTML = '';
+    var card = document.createElement('div');
+    card.style.cssText = 'padding:16px;';
+
+    card.innerHTML =
+      '<h3 style="color:#a78bfa;font-size:14px;font-weight:700;margin:0 0 12px">Advertisement Manager</h3>' +
+      '<p style="color:rgba(255,255,255,0.4);font-size:12px;margin:0 0 16px">Set up to 4 ads. They show at the top of Home, Movies, TV, Anime, Manga, Posts, and Web pages. Ads are randomly shown to users.</p>';
+
+    var ads = getAds();
+    if (ads.length < 4) {
+      var addBtn = document.createElement('button');
+      addBtn.textContent = '+ Add Ad';
+      addBtn.style.cssText =
+        'background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);' +
+        'padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;margin-bottom:16px;';
+      addBtn.onclick = function() {
+        if (ads.length >= 4) { alert('Maximum 4 ads allowed'); return; }
+        var url = prompt('Image/Video URL (jpg, png, gif, mp4, webm):');
+        if (!url) return;
+        var link = prompt('Click-through link (leave blank for none):');
+        var ad = { url: url, link: link || '', type: _isVideoUrl(url) ? 'video' : 'image', id: Date.now() };
+        ads.push(ad);
+        saveAds(ads);
+        __fas_renderAdTab(container);
+      };
+      card.appendChild(addBtn);
+    }
+
+    var list = document.createElement('div');
+    list.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+    ads.forEach(function(ad, idx) {
+      var row = document.createElement('div');
+      row.style.cssText =
+        'display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;' +
+        'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);';
+
+      var thumb = document.createElement('div');
+      if (ad.type === 'video') {
+        thumb.innerHTML = '<div style="width:48px;height:36px;background:#222;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#a78bfa;font-size:16px;">&#9654;</div>';
+      } else {
+        thumb.innerHTML = '<img src="' + ad.url + '" style="width:48px;height:36px;object-fit:cover;border-radius:6px;background:#222;" onerror="this.style.display=\'none\'">';
+      }
+
+      var info = document.createElement('div');
+      info.style.cssText = 'flex:1;min-width:0;';
+      info.innerHTML = '<div style="color:#fff;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (ad.url.split('/').pop() || 'Ad ' + (idx+1)) + '</div>' +
+        '<div style="color:rgba(255,255,255,0.3);font-size:10px;">Ad #' + (idx+1) + (ad.link ? ' \u2192 ' + ad.link : '') + '</div>';
+
+      var del = document.createElement('button');
+      del.textContent = '\u00d7';
+      del.style.cssText = 'width:28px;height:28px;border-radius:6px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);cursor:pointer;font-size:14px;';
+      del.onclick = function() {
+        ads.splice(idx, 1);
+        saveAds(ads);
+        __fas_renderAdTab(container);
+      };
+
+      row.appendChild(thumb);
+      row.appendChild(info);
+      row.appendChild(del);
+      list.appendChild(row);
+    });
+    card.appendChild(list);
+
+    /* Enable/Disable toggle */
+    var toggleRow = document.createElement('div');
+    toggleRow.style.cssText = 'margin-top:16px;display:flex;align-items:center;gap:10px;';
+    var toggleLabel = document.createElement('span');
+    toggleLabel.style.cssText = 'color:rgba(255,255,255,0.5);font-size:12px;flex:1;';
+    toggleLabel.textContent = 'Ads Enabled';
+    var toggle = document.createElement('button');
+    toggle.textContent = _adsEnabled ? 'ON' : 'OFF';
+    toggle.style.cssText = 'padding:6px 14px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ' +
+      (_adsEnabled ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)') + ';background:' +
+      (_adsEnabled ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)') + ';color:' +
+      (_adsEnabled ? '#22c55e' : '#ef4444') + ';';
+    toggle.onclick = function() {
+      _adsEnabled = !_adsEnabled;
+      saveAds(getAds());
+      __fas_renderAdTab(container);
+    };
+    toggleRow.appendChild(toggleLabel);
+    toggleRow.appendChild(toggle);
+    card.appendChild(toggleRow);
+
+    container.appendChild(card);
+  };
+
+  function saveAds(ads) {
+    try { sessionStorage.setItem(_adsKey, JSON.stringify(ads)); } catch(e) {}
+    /* Save to Firestore */
+    if (window.fsUpdateDoc && window.fsDoc && window.db) {
+      try {
+        window.fsUpdateDoc(window.fsDoc(window.db, 'settings', 'site'), {
+          ads: ads, adsEnabled: _adsEnabled
+        }).catch(function() {});
+      } catch(e) {}
+    }
+  }
+
+  /* Expose shared helpers for the admin Ads manager */
+  window.__fas_getAds = getAds;
+  window.__fas_saveAds = function(ads) { saveAds(ads); };
+  window.__fas_adsEnabled = function() { return _adsEnabled; };
+  window.__fas_setAdsEnabled = function(v) { _adsEnabled = v ? true : false; };
+  window.__fas_loadAdsFromFB = loadAds;
+})();
+
+/* ================================================================
+     WEBSITE CLICK POPUP
+     After 5 website clicks in Web section (15 for premium users),
+     show a popup in a new
+     window (so it appears over the opened site). Close button appears
+     after a countdown. Counter resets after trigger.
+  ================================================================ */
+(function(){
+  var CLICK_KEY = 'fas_web_clicks';
+  var POPUP_KEY = 'fas_popup_shown';
+  var ENABLE_KEY = 'fas_popup_enabled';
+  var _popupEnabled = true;
+
+  /* Original window.open saved so we can open our ad window without
+     tripping our own site-blocking interceptor. */
+  var _origOpen = window.open.bind(window);
+  /* When set, the NEXT window.open call belonging to a website card is
+     cancelled and replaced with the ad window (so the site never opens). */
+  var _adPending = false;
+  var _adShown = false;
+
+  /* Intercept window.open so the triggering website click does NOT
+     open the site first — instead we show the ad window. The site card
+     opens about:blank in a new window (WebHub u() fn); we redirect that. */
+  window.open = function(url, name, features) {
+    if (_adPending) {
+      _adPending = false;
+      _adShown = true;
+      /* Open the ad instead of the website */
+      try { showPopup(); } catch(e) {}
+      return null; /* makes the site handler bail — no site window */
+    }
+    return _origOpen.apply(this, arguments);
+  };
+
+  /* Load popup enabled flag from Firestore settings/site/popupEnabled */
+  function loadPopupSetting() {
+    if (!window.fsGetDoc || !window.fsDoc || !window.db) return;
+    try {
+      window.fsGetDoc(window.fsDoc(window.db, 'settings', 'site')).then(function(doc) {
+        if (doc.exists()) {
+          var d = doc.data();
+          if (typeof d.popupEnabled !== 'undefined') {
+            _popupEnabled = d.popupEnabled;
+            try { sessionStorage.setItem(ENABLE_KEY, String(_popupEnabled)); } catch(e) {}
+          } else {
+            try {
+              var cached = sessionStorage.getItem(ENABLE_KEY);
+              if (cached !== null) _popupEnabled = cached !== 'false';
+            } catch(e) {}
+          }
+        }
+      }).catch(function() {});
+    } catch(e) {}
+  }
+  loadPopupSetting();
+  setInterval(loadPopupSetting, 15000);
+
+  /* Expose for the admin Ads manager toggle */
+  window.__fas_popupEnabled = function() { return _popupEnabled; };
+  window.__fas_setPopupEnabled = function(v) {
+    _popupEnabled = v ? true : false;
+    try { sessionStorage.setItem(ENABLE_KEY, String(_popupEnabled)); } catch(e) {}
+    if (window.fsUpdateDoc && window.fsDoc && window.db) {
+      try {
+        window.fsUpdateDoc(window.fsDoc(window.db, 'settings', 'site'), { popupEnabled: _popupEnabled }).catch(function() {});
+      } catch(e) {}
+    }
+  };
+
+  function getClicks() {
+    try { return parseInt(localStorage.getItem(CLICK_KEY) || '0'); } catch(e) { return 0; }
+  }
+  function setClicks(n) {
+    try { localStorage.setItem(CLICK_KEY, String(n)); } catch(e) {}
+  }
+
+  /* Premium users get a higher threshold (15) before the ad popup;
+     everyone else hits it after 5 clicks. */
+  function userIsPremium() {
+    try {
+      var uid = window.__fas_selfUid || (window.__FIREBASE_USER__ || {}).uid || '';
+      if (!uid) return false;
+      var u = (window.__fas_usersCache || {})[uid];
+      if (!u) return false;
+      return !!u.premium && (!u.premiumExpiresAt || u.premiumExpiresAt > Date.now());
+    } catch(e) { return false; }
+  }
+  function getMaxClicks() {
+    return userIsPremium() ? 15 : 5;
+  }
+
+  /* Inject CSS */
+  var s = document.createElement('style');
+  s.textContent =
+    '@keyframes fasPopupIn{from{opacity:0;transform:scale(0.9)}to{opacity:1;transform:scale(1)}}' +
+    '@keyframes fasPopupOut{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(0.9)}}' +
+    '#fas-popup-overlay{position:fixed;inset:0;z-index:9999997;background:rgba(0,0,0,0.7);' +
+    'display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);' +
+    'animation:fasPopupIn 0.3s ease;font-family:system-ui,-apple-system,sans-serif;}' +
+    '#fas-popup-card{background:linear-gradient(180deg,rgba(30,22,52,0.97),rgba(16,11,30,0.98));' +
+    'border:1px solid rgba(167,139,250,0.35);border-radius:16px;padding:32px;max-width:480px;width:92%;text-align:center;' +
+    'box-shadow:0 25px 60px rgba(0,0,0,0.6);position:relative;}' +
+    '#fas-popup-card h2{color:#ffffff !important;text-shadow:0 1px 2px rgba(0,0,0,0.6);}' +
+    '#fas-popup-card p{color:rgba(255,255,255,0.78) !important;text-shadow:0 1px 1px rgba(0,0,0,0.5);}' +
+    '#fas-popup-ad{display:block;width:100%;max-height:260px;object-fit:contain;border-radius:12px;' +
+    'border:1px solid rgba(255,255,255,0.12);background:#000;margin:0 auto 14px;}' +
+    '#fas-popup-adbadge{position:absolute;top:14px;left:14px;background:rgba(167,139,250,0.9);color:#1a1030;' +
+    'font-size:9px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;padding:3px 8px;border-radius:6px;}' +
+    '#fas-popup-close{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;' +
+    'background:rgba(255,255,255,0.10);color:#fff;border:1px solid rgba(255,255,255,0.15);font-size:16px;' +
+    'cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;' +
+    'opacity:0;pointer-events:none;}' +
+    '#fas-popup-close.visible{opacity:1;pointer-events:auto;}' +
+    '#fas-popup-close:hover{background:rgba(255,255,255,0.22);color:#fff;}';
+  document.head.appendChild(s);
+
+  function _renderAdBody(ad, countSeconds) {
+    /* Returns HTML string of the ad (or take-a-break fallback) content */
+    var out = '<span style="position:absolute;top:12px;left:12px;background:#a78bfa;color:#1a1030;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:6px;">Ad</span>';
+    out += '<span id="closeX" style="position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.18);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s;">&times;</span>';
+
+    if (ad && ad.url) {
+      var isVid = (ad.type === 'video') || /\.(mp4|webm|mov)(\?|$)/i.test(ad.url);
+      if (isVid) {
+        out += '<video autoplay loop muted playsinline style="width:100%;max-height:420px;object-fit:contain;border-radius:14px;background:#000;margin-bottom:20px;display:block;"><source src="' + ad.url + '"></video>';
+      } else {
+        out += '<img style="width:100%;max-height:420px;object-fit:contain;border-radius:14px;background:#000;margin-bottom:20px;display:block;" src="' + ad.url + '">';
+      }
+      out += '<div style="color:#fff;font-size:22px;font-weight:800;margin-bottom:6px;">' + (ad.name || ad.title || 'Sponsored') + '</div>';
+      out += '<div style="color:rgba(255,255,255,0.78);font-size:14px;line-height:1.6;">' + (ad.description || ad.desc || 'Enjoy this sponsored offer.') + '</div>';
+      if (ad.link) {
+        out += '<button onclick="window.open(\'' + ad.link + '\',\'_blank\')" style="margin-top:18px;padding:14px 34px;border:none;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,#a78bfa,#7554dc);color:#fff;">Visit Ad</button>';
+      }
+    } else {
+      out += '<div style="font-size:56px;margin-bottom:14px;">&#9749;</div>';
+      out += '<div style="color:#fff;font-size:24px;font-weight:800;margin-bottom:10px;">Take a Break!</div>';
+      out += '<div style="color:rgba(255,255,255,0.78);font-size:15px;line-height:1.6;">You\'ve been browsing a lot. Maybe take a quick break?</div>';
+    }
+    out += '<div id="count" style="color:#a78bfa;font-size:14px;font-weight:700;margin-top:18px;">You can close in ' + countSeconds + 's</div>';
+    return out;
+  }
+
+  /* Open the ad popup in a NEW window so it appears on top of the opened site */
+  function showPopup() {
+    setClicks(0);
+
+    /* Disable the click counter until the next session of browsing */
+    var ads = (window.__fas_getAds ? window.__fas_getAds() : []) || [];
+    var ad = ads.length ? ads[Math.floor(Math.random() * ads.length)] : null;
+    var CLOSE_SECONDS = 5;
+
+    var win = null;
+    try { win = _origOpen('about:blank', '_blank'); } catch(e) {}
+    if (win && win.document) {
+      try {
+        var d = win.document;
+        d.open();
+        d.close();
+        var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sponsored</title></head>' +
+          '<body style="margin:0;font-family:system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 30%, #241a42, #0e0a1d);box-sizing:border-box;text-align:center;">' +
+          '<div style="position:relative;background:rgba(255,255,255,0.06);border:1px solid rgba(167,139,250,0.5);border-radius:20px;padding:40px 32px 32px;max-width:720px;width:94%;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,0.6);box-sizing:border-box;">' +
+          _renderAdBody(ad, CLOSE_SECONDS) +
+          '</div>' +
+          '<scr' + 'ipt>' +
+          'var c=document.getElementById("closeX"),n=' + CLOSE_SECONDS + ',el=document.getElementById("count");' +
+          'var t=setInterval(function(){n--;if(n<=0){clearInterval(t);c.style.opacity="1";c.style.pointerEvents="auto";el.textContent="You can close now";}else{el.textContent="You can close in "+n+"s";}},1000);' +
+          'c.onclick=function(){window.close();};' +
+          '</scr' + 'ipt>' +
+          '</body></html>';
+        d.write(html);
+        d.close();
+        return;
+      } catch(e) {
+        try { win.close(); } catch(err) {}
+      }
+    }
+
+    /* Popup blocked (no user gesture / ad blocker): fall back to in-page overlay */
+    _showOverlay(ad, CLOSE_SECONDS);
+  }
+
+  /* In-page fallback overlay if window.open fails */
+  function _showOverlay(ad, countSeconds) {
+    if (document.getElementById('fas-popup-overlay')) return;
+    var overlay = document.createElement('div');
+    overlay.id = 'fas-popup-overlay';
+    var card = document.createElement('div');
+    card.id = 'fas-popup-card';
+    var closeBtn = document.createElement('button');
+    closeBtn.id = 'fas-popup-close';
+    closeBtn.textContent = '\u00d7';
+    closeBtn.onclick = function() {
+      overlay.style.animation = 'fasPopupOut 0.2s ease forwards';
+      setTimeout(function() { overlay.remove(); }, 200);
+    };
+    var closeHint = document.createElement('p');
+    closeHint.textContent = 'You can close in ' + countSeconds + 's';
+    closeHint.style.cssText = 'color:#a78bfa;font-size:12px;font-weight:600;margin:14px 0 0;';
+
+    if (ad && ad.url) {
+      var isVid = (ad.type === 'video') || /\.(mp4|webm|mov)(\?|$)/i.test(ad.url);
+      var badge = document.createElement('span');
+      badge.id = 'fas-popup-adbadge';
+      badge.textContent = 'Ad';
+      card.appendChild(badge);
+      if (isVid) {
+        var vid = document.createElement('video');
+        vid.id = 'fas-popup-ad';
+        vid.src = ad.url; vid.muted = true; vid.loop = true; vid.autoplay = true; vid.playsInline = true;
+        card.appendChild(vid);
+      } else {
+        var img = document.createElement('img');
+        img.id = 'fas-popup-ad';
+        img.src = ad.url;
+        img.alt = '';
+        img.onerror = function() { if (img) img.style.display = 'none'; };
+        card.appendChild(img);
+      }
+      var adTitle = document.createElement('div');
+      adTitle.textContent = (ad.name || ad.title || 'Sponsored');
+      adTitle.style.cssText = 'color:#fff;font-size:15px;font-weight:700;margin:0 0 4px;';
+      card.appendChild(adTitle);
+      var adSub = document.createElement('div');
+      adSub.textContent = (ad.description || ad.desc || 'Enjoy this sponsored offer.');
+      adSub.style.cssText = 'color:rgba(255,255,255,0.65);font-size:12px;line-height:1.5;';
+      card.appendChild(adSub);
+      if (ad.link) {
+        var goBtn = document.createElement('button');
+        goBtn.textContent = 'Visit Ad';
+        goBtn.style.cssText = 'margin-top:12px;padding:10px 22px;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;border:none;background:linear-gradient(135deg,rgba(167,139,250,0.9),rgba(117,84,220,0.9));color:#fff;';
+        goBtn.onclick = function() { window.open(ad.link, '_blank'); };
+        card.appendChild(goBtn);
+      }
+    } else {
+      var icon = document.createElement('div');
+      icon.innerHTML = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
+      icon.style.cssText = 'margin-bottom:16px;';
+      var h = document.createElement('h2');
+      h.textContent = 'Take a Break!';
+      h.style.cssText = 'color:#fff;font-size:18px;font-weight:700;margin:0 0 8px;';
+      var p = document.createElement('p');
+      p.textContent = 'You\'ve been browsing a lot. Maybe take a quick break?';
+      p.style.cssText = 'color:rgba(255,255,255,0.78);font-size:14px;margin:0 0 20px;line-height:1.6;';
+      card.appendChild(icon); card.appendChild(h); card.appendChild(p);
+    }
+
+    card.appendChild(closeBtn);
+    card.appendChild(closeHint);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    var remaining = countSeconds;
+    var countTimer = setInterval(function() {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(countTimer);
+        closeBtn.classList.add('visible');
+        closeHint.textContent = 'You can close now';
+      } else {
+        closeHint.textContent = 'You can close in ' + remaining + 's';
+      }
+    }, 1000);
+
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay && closeBtn.classList.contains('visible')) {
+        overlay.style.animation = 'fasPopupOut 0.2s ease forwards';
+        setTimeout(function() { overlay.remove(); }, 200);
+      }
+    });
+  }
+
+  /* Intercept WebHub clicks */
+  document.addEventListener('click', function(e) {
+    /* Only count clicks on the ACTUAL website cards — the accordion folder
+       headers (expand/collapse) and other controls must NOT count. A real
+       site card is a clickable (cursor-pointer), unlocked card with the
+       distinct "rounded-xl" container style. Folder buttons have cursor-pointer
+       but no rounded-xl, so they're excluded. */
+    var card = e.target.closest && e.target.closest('[class*="cursor-pointer"]');
+    if (!card) return;
+    var cls = card.className || '';
+    var isSiteCard = cls.indexOf('rounded-xl') >= 0 && cls.indexOf('cursor-not-allowed') < 0;
+    if (!isSiteCard) return;
+
+    /* Make sure we're inside the Web section (container has a "Web"/"Limited" heading) */
+    var webArea = e.target.closest('[class*="max-w-6xl"]');
+    if (!webArea) webArea = e.target.closest('[class*="space-y-8"]');
+    if (!webArea) return;
+    var headingEl = webArea.querySelector('h1');
+    if (!headingEl) return;
+    var htxt = headingEl.textContent.toLowerCase();
+    if (htxt.indexOf('web') < 0 && htxt.indexOf('limited') < 0) return;
+
+    var clicks = getClicks() + 1;
+    setClicks(clicks);
+    if (clicks >= getMaxClicks() && _popupEnabled) {
+      /* Block the site from opening and show the ad instead. The card's
+         React handler calls window.open(about:blank) right after our
+         capture-phase handler, and our interceptor redirects that to the ad. */
+      _adPending = true;
+      _adShown = false;
+      /* Fallback: if the card didn't open a window (no site open to
+         intercept), show the ad directly after a short delay. */
+      setTimeout(function() {
+        _adPending = false;
+        if (!_adShown) {
+          try { _adShown = true; showPopup(); } catch(e) {}
+        }
+      }, 500);
+    }
+  }, true);
+})();
+
+/* ================================================================
+     PIN POSTS (Admin only)
+     Admin can pin posts. Pinned posts show at top of feed.
+     Uses Firestore settings/site/pinnedPosts array.
+  ================================================================ */
+(function(){
+  var PINNED_KEY = 'fas_pinned_posts';
+  var _pinnedPosts = [];
+
+  function loadPinned() {
+    if (!window.fsGetDoc || !window.fsDoc || !window.db) return;
+    try {
+      window.fsGetDoc(window.fsDoc(window.db, 'settings', 'site')).then(function(doc) {
+        if (doc.exists()) {
+          var d = doc.data();
+          _pinnedPosts = d.pinnedPosts || [];
+          try { sessionStorage.setItem(PINNED_KEY, JSON.stringify(_pinnedPosts)); } catch(e) {}
+        }
+      }).catch(function() {});
+    } catch(e) {}
+  }
+
+  loadPinned();
+  setInterval(loadPinned, 30000);
+
+  function getPinned() {
+    try {
+      var raw = sessionStorage.getItem(PINNED_KEY);
+      if (raw) _pinnedPosts = JSON.parse(raw);
+    } catch(e) {}
+    return _pinnedPosts;
+  }
+
+  function savePinned() {
+    try { sessionStorage.setItem(PINNED_KEY, JSON.stringify(_pinnedPosts)); } catch(e) {}
+    if (window.fsUpdateDoc && window.fsDoc && window.db) {
+      try {
+        window.fsUpdateDoc(window.fsDoc(window.db, 'settings', 'site'), {
+          pinnedPosts: _pinnedPosts
+        }).catch(function() {});
+      } catch(e) {}
+    }
+  }
+
+  /* Intercept post actions to add pin button for admin */
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest && e.target.closest('button');
+    if (!btn) return;
+    var txt = (btn.textContent || '').trim().toLowerCase();
+
+    /* Look for "..." menu or "more" button near a post */
+    if (txt !== '...' && txt !== '\u2026' && txt !== 'more' && txt !== '⚙' && txt !== 'options') return;
+
+    /* Check if admin */
+    var isAdmin = false;
+    try {
+      var u = window.__FIREBASE_USER__ || window.__USER__;
+      if (u && (u.email === 'fasahatalhasan@gmail.com' || u.email === 'admin@galaxy.lol')) isAdmin = true;
+      if (!isAdmin) {
+        var roles = JSON.parse(localStorage.getItem('fh_user_roles') || '{}');
+        if (roles[u && u.uid] === 'admin') isAdmin = true;
+      }
+    } catch(e) {}
+    if (!isAdmin) return;
+
+    /* Find the post container */
+    var postEl = btn.closest('[class*="border-b"], [class*="rounded"], [class*="bg-"]');
+    if (!postEl) return;
+
+    /* Find post content/ID */
+    setTimeout(function() {
+      /* Check if pin option already added */
+      if (postEl.querySelector('.fas-pin-btn')) return;
+
+      /* Find any dropdown or menu that opened */
+      var menus = document.querySelectorAll('[class*="absolute"], [class*="dropdown"], [class*="menu"], [role="menu"]');
+      menus.forEach(function(menu) {
+        if (menu.querySelector('.fas-pin-btn')) return;
+        if (menu.offsetParent === null) return;
+
+        var pinBtn = document.createElement('button');
+        pinBtn.className = 'fas-pin-btn';
+        pinBtn.textContent = '\uD83D\uDCCC Pin Post';
+        pinBtn.style.cssText =
+          'width:100%;text-align:left;padding:8px 12px;background:none;border:none;color:#a78bfa;' +
+          'font-size:13px;cursor:pointer;display:block;border-radius:6px;';
+        pinBtn.onmouseenter = function() { pinBtn.style.background = 'rgba(167,139,250,0.1)'; };
+        pinBtn.onmouseleave = function() { pinBtn.style.background = 'none'; };
+        pinBtn.onclick = function(ev) {
+          ev.stopPropagation();
+          /* Get post content text as ID */
+          var contentEl = postEl.querySelector('[class*="text-white"], p');
+          var content = contentEl ? contentEl.textContent.substring(0, 50) : '';
+          var postId = 'post_' + btoa(content).substring(0, 16);
+
+          var pinned = getPinned();
+          var exists = pinned.find(function(p) { return p.id === postId; });
+          if (exists) {
+            pinned = pinned.filter(function(p) { return p.id !== postId; });
+            _pinnedPosts = pinned;
+            savePinned();
+          } else {
+            pinned.push({ id: postId, content: content, time: Date.now() });
+            _pinnedPosts = pinned;
+            savePinned();
+          }
+          menu.remove();
+        };
+        menu.appendChild(pinBtn);
+      });
+    }, 100);
+  }, true);
+
+  /* Inject pinned badge on pinned posts */
+  setInterval(function() {
+    var pinned = getPinned();
+    if (!pinned.length) return;
+    /* Look for posts and add pin badge if content matches */
+    var posts = document.querySelectorAll('[class*="border-b"], [class*="rounded"][class*="bg-"]');
+    posts.forEach(function(post) {
+      if (post.querySelector('.fas-pin-badge')) return;
+      var contentEl = post.querySelector('[class*="text-white"], p');
+      if (!contentEl) return;
+      var content = contentEl.textContent.substring(0, 50);
+      var postId = 'post_' + btoa(content).substring(0, 16);
+      var isPinned = pinned.find(function(p) { return p.id === postId; });
+      if (isPinned) {
+        var badge = document.createElement('div');
+        badge.className = 'fas-pin-badge';
+        badge.innerHTML = '\uD83D\uDCCC Pinned';
+        badge.style.cssText =
+          'display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;' +
+          'background:rgba(167,139,250,0.15);color:#a78bfa;font-size:10px;font-weight:700;margin-bottom:6px;';
+        post.insertBefore(badge, post.firstChild);
+      }
+    });
+  }, 3000);
+})();
+
+/* ================================================================
+     VIP POSTS PAGE
+     Premium-only posts page with access gate.
+     Shows "This page is limited to premium members only" at top.
+  ================================================================ */
+(function(){
+  function injectVIPPostsPage() {
+    if (document.getElementById('fas-vip-posts-page')) return;
+    var hash = (location.hash || '').toLowerCase();
+    if (hash.indexOf('vip') < 0 && hash.indexOf('premium-post') < 0) return;
+
+    /* Check premium status */
+    var isPremium = false;
+    try {
+      var u = window.__FIREBASE_USER__ || window.__USER__;
+      if (u) {
+        var roles = JSON.parse(localStorage.getItem('fh_user_roles') || '{}');
+        if (roles[u.uid] === 'premium' || roles[u.uid] === 'admin') isPremium = true;
+        if (u.email === 'fasahatalhasan@gmail.com') isPremium = true;
+      }
+      var sub = JSON.parse(localStorage.getItem('fh_subscription') || '{}');
+      if (sub && sub.active) isPremium = true;
+    } catch(e) {}
+
+    var main = document.querySelector('main, [class*="max-w-"]');
+    if (!main) return;
+
+    var page = document.createElement('div');
+    page.id = 'fas-vip-posts-page';
+    page.style.cssText = 'padding:16px;';
+
+    /* Header banner */
+    var banner = document.createElement('div');
+    banner.style.cssText =
+      'background:linear-gradient(135deg,rgba(167,139,250,0.15),rgba(236,72,153,0.1));' +
+      'border:1px solid rgba(167,139,250,0.2);border-radius:12px;padding:20px;margin-bottom:16px;text-align:center;';
+
+    var crownIcon = document.createElement('div');
+    crownIcon.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="1.5"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z"/><path d="M3 20h18"/></svg>';
+    crownIcon.style.cssText = 'margin-bottom:8px;';
+
+    var h2 = document.createElement('h2');
+    h2.textContent = 'VIP Posts';
+    h2.style.cssText = 'color:#fff;font-size:18px;font-weight:700;margin:0 0 4px;';
+
+    var subtext = document.createElement('p');
+    subtext.textContent = 'This page is limited to premium members only';
+    subtext.style.cssText = 'color:rgba(167,139,250,0.6);font-size:12px;margin:0;';
+
+    banner.appendChild(crownIcon);
+    banner.appendChild(h2);
+    banner.appendChild(subtext);
+    page.appendChild(banner);
+
+    if (!isPremium) {
+      /* Show lock screen */
+      var lock = document.createElement('div');
+      lock.style.cssText =
+        'text-align:center;padding:40px 20px;background:rgba(255,255,255,0.02);border-radius:12px;' +
+        'border:1px solid rgba(255,255,255,0.05);';
+      lock.innerHTML =
+        '<div style="font-size:40px;margin-bottom:12px;">\uD83D\uDD12</div>' +
+        '<h3 style="color:#fff;font-size:16px;font-weight:700;margin:0 0 8px;">Premium Required</h3>' +
+        '<p style="color:rgba(255,255,255,0.4);font-size:13px;margin:0 0 16px;">Upgrade to premium to access VIP Posts</p>' +
+        '<button onclick="window.location.hash=\'#/premium\'" style="background:linear-gradient(135deg,#a78bfa,#ec4899);color:#fff;border:none;padding:10px 24px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">Get Premium</button>';
+      page.appendChild(lock);
+    } else {
+      /* Show VIP posts from Firestore */
+      var postsList = document.createElement('div');
+      postsList.style.cssText = 'display:flex;flex-direction:column;gap:12px;';
+
+      if (window.fsGetDocs && window.fsQuery && window.fsCollection && window.fsOrderBy && window.fsWhere && window.db) {
+        postsList.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,0.3);padding:20px;">Loading VIP posts...</div>';
+        page.appendChild(postsList);
+
+        /* Query posts marked as VIP or from premium users */
+        try {
+          var q = window.fsQuery(
+            window.fsCollection(window.db, 'posts'),
+            window.fsWhere('isVIP', '==', true)
+          );
+          window.fsGetDocs(q).then(function(snap) {
+            postsList.innerHTML = '';
+            if (snap.empty) {
+              postsList.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,0.3);padding:30px;">No VIP posts yet</div>';
+              return;
+            }
+            snap.forEach(function(doc) {
+              var d = doc.data();
+              var card = document.createElement('div');
+              card.style.cssText =
+                'background:rgba(255,255,255,0.03);border:1px solid rgba(167,139,250,0.1);' +
+                'border-radius:12px;padding:16px;';
+              card.innerHTML =
+                '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
+                  '<div style="width:32px;height:32px;border-radius:50%;background:rgba(167,139,250,0.15);overflow:hidden;">' +
+                    (d.authorPhoto ? '<img src="' + d.authorPhoto + '" style="width:100%;height:100%;object-fit:cover;">' : '') +
+                  '</div>' +
+                  '<div><div style="color:#fff;font-size:13px;font-weight:600;">' + (d.authorName || 'Anonymous') + '</div>' +
+                  '<div style="color:rgba(255,255,255,0.3);font-size:10px;">VIP Post</div></div>' +
+                '</div>' +
+                '<p style="color:rgba(255,255,255,0.7);font-size:13px;margin:0;line-height:1.5;">' + (d.content || '') + '</p>' +
+                (d.imageUrl ? '<img src="' + d.imageUrl + '" style="width:100%;border-radius:8px;margin-top:10px;max-height:300px;object-fit:cover;" loading="lazy">' : '');
+              postsList.appendChild(card);
+            });
+          }).catch(function(e) {
+            postsList.innerHTML = '<div style="text-align:center;color:#ef4444;padding:20px;">Error loading posts</div>';
+          });
+        } catch(e) {
+          postsList.innerHTML = '<div style="text-align:center;color:#ef4444;padding:20px;">Error: ' + e.message + '</div>';
+        }
+      } else {
+        postsList.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,0.3);padding:20px;">Loading...</div>';
+      }
+      page.appendChild(postsList);
+    }
+
+    main.insertBefore(page, main.firstChild);
+  }
+
+  /* Watch for SPA navigation */
+  setInterval(injectVIPPostsPage, 2000);
+  var origHash = location.hash;
+  setInterval(function() {
+    if (location.hash !== origHash) {
+      origHash = location.hash;
+      var old = document.getElementById('fas-vip-posts-page');
+      if (old) old.remove();
+    }
+  }, 500);
+})();
+
+/* ================================================================
+     IMAGE LOADING FIX
+     Adds cache-busting query params to stale images and retry logic.
+     Fixes images that fail to load after refresh/hard refresh.
+  ================================================================ */
+(function(){
+  /* Retry failed images with cache-busting */
+  document.addEventListener('error', function(e) {
+    var el = e.target;
+    if (el.tagName !== 'IMG') return;
+    if (el.dataset.fasRetried) return;
+    el.dataset.fasRetried = '1';
+
+    var src = el.src;
+    if (!src || src.indexOf('data:') === 0) return;
+
+    /* Add cache-busting param */
+    var sep = src.indexOf('?') >= 0 ? '&' : '?';
+    el.src = src + sep + '_t=' + Date.now();
+  }, true);
+
+  /* Periodically fix images that still show broken state */
+  setInterval(function() {
+    var imgs = document.querySelectorAll('img:not([data-fas-checked])');
+    for (var i = 0; i < imgs.length; i++) {
+      var img = imgs[i];
+      img.dataset.fasChecked = '1';
+      if (img.complete && img.naturalWidth === 0 && img.src && img.src.indexOf('data:') !== 0) {
+        /* Image failed to load, retry with cache bust */
+        var src = img.src;
+        var sep = src.indexOf('?') >= 0 ? '&' : '?';
+        img.src = src + sep + '_r=' + Date.now();
+      }
+    }
+  }, 5000);
+})();
+
+/* ================================================================
+     ADMIN TAB REGISTRATION — ads tab added inline in template literal
+  ================================================================ */
+
+/* ================================================================
+     REMOVE ACHIEVEMENTS (Ach1v3) — hide the nav tab + page content
+     Uses CSS-only hiding (display:none) so React reconciliation is
+     not disrupted, and re-applies on every re-render via observer.
+  ================================================================ */
+(function() {
+  function _norm(s) { return (s || '').replace(/[^a-z0-9]/gi, '').toLowerCase(); }
+
+  function _hideAchTab() {
+    try {
+      var els = document.querySelectorAll(
+        'nav button, nav a, nav [role="button"], ' +
+        '[class*="nav"] button, [class*="nav"] a, ' +
+        'header button, header a, [class*="tab"] button'
+      );
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        var t = _norm(el.textContent);
+        if (t.indexOf('ach1v3') >= 0 || t === 'achiv' || t === 'achieve') {
+          if (el.style.display !== 'none') el.style.display = 'none';
+        }
+      }
+    } catch(e) {}
+  }
+
+  /* Hide the achievements page body when it renders (h1: "Achievements") */
+  function _hideAchPage() {
+    try {
+      var hs = document.querySelectorAll('h1');
+      for (var i = 0; i < hs.length; i++) {
+        var h = hs[i];
+        if (_norm(h.textContent) !== 'achievements') continue;
+        var root = h.closest('[class*="p-6"], [class*="rounded-2xl"], [class*="backdrop-blur"]');
+        if (root) {
+          if (root.style.display !== 'none') root.style.display = 'none';
+          continue;
+        }
+        var parent = h.parentElement;
+        if (parent && parent.style.display !== 'none') parent.style.display = 'none';
+      }
+    } catch(e) {}
+  }
+
+  function run() {
+    _hideAchTab();
+    _hideAchPage();
+  }
+
+  run();
+  var mo = new MutationObserver(run);
+  if (document.body) {
+    mo.observe(document.body, { childList: true, subtree: true });
+  } else {
+    document.addEventListener('DOMContentLoaded', function() {
+      mo.observe(document.body, { childList: true, subtree: true });
+    });
+  }
+  var poll = 0;
+  var pollId = setInterval(function() {
+    poll++;
+    if (poll > 200) { clearInterval(pollId); return; } /* ~10 min */
+    run();
+  }, 3000);
+})();
+
+/* ================================================================
+     FORCED SIGN-IN WALL
+     If the user isn't signed in, block the whole app with a
+     sign-in screen so nothing is usable without an account.
+  ================================================================ */
+(function(){
+  if (window.__fasSignInWallLoaded) return;
+  window.__fasSignInWallLoaded = true;
+
+  var _wall = null;
+  var _graced = false;
+
+  function isSignedIn() {
+    try {
+      var u = window.__FIREBASE_USER__ || window.__USER__;
+      return !!(u && u.uid);
+    } catch(e) { return false; }
+  }
+
+  function build() {
+    if (_wall) return;
+    var d = document.createElement('div');
+    d.id = 'fas-signin-wall';
+    d.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(10,10,15,0.96);' +
+      'display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;' +
+      'font-family:Inter,system-ui,-apple-system,sans-serif;text-align:center;padding:24px;' +
+      'backdrop-filter:blur(8px);';
+    d.innerHTML =
+      '<div style="font-size:52px;line-height:1">\uD83D\uDD12</div>' +
+      '<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0;letter-spacing:.04em">Sign in to continue</h2>' +
+      '<p style="color:rgba(255,255,255,.55);font-size:13px;margin:0;max-width:340px;line-height:1.6">' +
+      'You must be signed in with your Google account to use Galaxy Annihilating CHS Lab.</p>' +
+      '<button id="fas-signin-wall-btn" style="margin-top:10px;padding:12px 34px;border:none;border-radius:100px;' +
+      'background:linear-gradient(135deg,#ffd700,#ff8c00);color:#0a0a0f;font-size:13px;font-weight:800;' +
+      'letter-spacing:.05em;cursor:pointer;text-transform:uppercase;">Sign in with Google</button>';
+    document.documentElement.appendChild(d);
+    var btn = d.querySelector('#fas-signin-wall-btn');
+    btn.onclick = function() {
+      btn.disabled = true;
+      btn.textContent = 'Opening Google...';
+      try { if (window.firebaseSignIn) window.firebaseSignIn(); } catch(e) {}
+      setTimeout(function() {
+        if (_wall) { btn.disabled = false; btn.textContent = 'Sign in with Google'; }
+      }, 8000);
+    };
+    _wall = d;
+  }
+
+  function refresh() {
+    if (isSignedIn()) {
+      if (_wall) { try { _wall.remove(); } catch(e) {} _wall = null; }
+      return;
+    }
+    if (_wall || !document.body || !_graced) return;
+    build();
+  }
+
+  /* Give the app time to restore / auto-sign-in before blocking */
+  setTimeout(function(){ _graced = true; refresh(); }, 1500);
+  setInterval(refresh, 1000);
+  window.addEventListener('auth-changed', refresh);
+})();
+
+/* ================================================================
+     PREMIUM UPSELL MODAL
+     Clicking any locked (premium-only) card opens an upsell prompt
+     with a Get Premium link to the Rewards page.
+  ================================================================ */
+window.__fasPremiumUpsell = function() {
+  if (document.getElementById('fas-upsell')) return;
+  var k = document.getElementById('fas-upsell-style');
+  if (!k) {
+    k = document.createElement('style');
+    k.id = 'fas-upsell-style';
+    k.textContent = '@keyframes fasIn{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}';
+    document.head.appendChild(k);
+  }
+  var ov = document.createElement('div');
+  ov.id = 'fas-upsell';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:2147483646;background:rgba(10,10,15,.72);display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(6px);';
+  var box = document.createElement('div');
+  box.style.cssText = 'max-width:400px;width:100%;background:#15151f;border:1px solid rgba(255,215,0,.35);border-radius:20px;padding:28px;text-align:center;font-family:Inter,system-ui,-apple-system,sans-serif;box-shadow:0 24px 80px rgba(0,0,0,.6);animation:fasIn .25s ease;';
+  box.innerHTML =
+    '<div style="font-size:44px;line-height:1">\uD83D\uDD12</div>' +
+    '<h2 style="margin:12px 0 6px;color:#fff;font-size:20px;font-weight:800;letter-spacing:.04em">This is Premium only</h2>' +
+    '<p style="margin:0 0 20px;color:rgba(255,255,255,.55);font-size:13px;line-height:1.65">Sign in and get Premium to unlock every site, movie, game and AI tool in Galaxy Annihilating CHS Lab.</p>' +
+    '<a href="/blackmarket" style="display:block;padding:12px;border-radius:100px;background:linear-gradient(135deg,#ffd700,#ff8c00);color:#0a0a0f;font-weight:800;font-size:13px;letter-spacing:.05em;text-transform:uppercase;text-decoration:none;">Get Premium</a>' +
+    '<button id="fas-upsell-later" style="margin-top:12px;width:100%;padding:10px;border:none;border-radius:100px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);font-weight:700;font-size:12px;cursor:pointer;">Maybe later</button>';
+  ov.appendChild(box);
+  document.documentElement.appendChild(ov);
+  var close = function() { try { ov.remove(); } catch(e) {} document.removeEventListener('keydown', esc); };
+  var esc = function(ev) { if (ev.key === 'Escape') close(); };
+  document.addEventListener('keydown', esc);
+  ov.querySelector('#fas-upsell-later').onclick = close;
+  ov.addEventListener('click', function(e) { if (e.target === ov) close(); });
+};
+
+(function(){
+  if (window.__fasUpsellClickBound) return;
+  window.__fasUpsellClickBound = true;
+  document.addEventListener('click', function(e) {
+    if (!e.target || !e.target.closest) return;
+    if (e.target.closest('#fas-upsell, #fas-signin-wall')) return;
+    var gated = e.target.closest('[class*="cursor-not-allowed"]');
+    if (!gated) {
+      gated = e.target.closest('[class*="opacity-50"]');
+      if (!gated) return;
+      try {
+        if ((gated.textContent || '').toLowerCase().indexOf('premium') < 0) return;
+      } catch(err) { return; }
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    try { window.__fasPremiumUpsell(); } catch(err) {}
+  }, true);
 })();
 
 
+
+
+/* ================================================================
+   IMAGE LIGHTBOX  (post images, comment images, DM images)
+   Images on the site are stored as compressed data: URLs. Browsers
+   block opening those in a new tab (blank page), so we show them in
+   an in-page viewer with zoom, pan, pinch and keyboard controls.
+================================================================ */
+(function(){
+  if (window.__fas_openImage) return;
+
+  var ov = null, im = null, stage = null, pct = null, hint = null;
+  var scale = 1, tx = 0, ty = 0, drag = null, pinch = null, pts = {};
+  var MIN = 1, MAX = 6, prevOverflow = '';
+
+  function paint(){
+    if (!im) return;
+    im.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
+    im.style.cursor = scale > 1 ? (drag ? 'grabbing' : 'grab') : 'default';
+    if (pct) pct.textContent = Math.round(scale * 100) + '%';
+    if (hint) hint.style.opacity = scale > 1 ? '1' : '.55';
+  }
+
+  function zoom(factor, cx, cy){
+    if (!im) return;
+    var ns = Math.max(MIN, Math.min(MAX, scale * factor));
+    if (cx != null && cy != null && stage){
+      var r = stage.getBoundingClientRect();
+      var ox = cx - (r.left + r.width / 2);
+      var oy = cy - (r.top + r.height / 2);
+      tx = ox - (ox - tx) * (ns / scale);
+      ty = oy - (oy - ty) * (ns / scale);
+    }
+    scale = ns;
+    if (scale <= 1){ scale = 1; tx = 0; ty = 0; }
+    paint();
+  }
+
+  function reset(){ scale = 1; tx = 0; ty = 0; paint(); }
+
+  function close(){
+    if (!ov) return;
+    var o = ov;
+    ov = null; im = null; stage = null; pct = null; hint = null;
+    drag = null; pinch = null; pts = {};
+    o.style.opacity = '0';
+    setTimeout(function(){ if (o.parentNode) o.parentNode.removeChild(o); }, 180);
+    try { document.body.style.overflow = prevOverflow; } catch(e) {}
+    try { document.documentElement.classList.remove('fas-lightbox-open'); } catch(e) {}
+    try { if (window.__fasKeepCursorOnTop) window.__fasKeepCursorOnTop(document.documentElement); } catch(e) {}
+    document.removeEventListener('keydown', onKey, true);
+  }
+
+  function onKey(e){
+    if (!ov) return;
+    if (e.key === 'Escape'){ e.preventDefault(); close(); }
+    else if (e.key === '+' || e.key === '='){ e.preventDefault(); zoom(1.25); }
+    else if (e.key === '-'){ e.preventDefault(); zoom(1 / 1.25); }
+    else if (e.key === '0'){ e.preventDefault(); reset(); }
+  }
+
+  function mkBtn(label, title, fn){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.title = title;
+    b.setAttribute('aria-label', title);
+    b.style.cssText = 'border:0;background:rgba(255,255,255,.08);color:#f3f4f6;width:36px;height:36px;border-radius:9999px;font-size:15px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:background .15s,color .15s;font-family:inherit;';
+    b.onmouseenter = function(){ b.style.background = 'rgba(250,204,21,.22)'; b.style.color = '#facc15'; };
+    b.onmouseleave = function(){ b.style.background = 'rgba(255,255,255,.08)'; b.style.color = '#f3f4f6'; };
+    b.onclick = function(e){ e.stopPropagation(); fn(); };
+    return b;
+  }
+
+  window.__fas_openImage = function(src){
+    if (!src) return;
+    if (ov) close();
+
+    prevOverflow = document.body.style.overflow || '';
+    try { document.body.style.overflow = 'hidden'; } catch(e) {}
+
+    ov = document.createElement('div');
+    ov.id = 'fas-img-viewer';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.setAttribute('aria-label', 'Image viewer');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:2147482000;background:rgba(4,6,14,.95);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .18s ease;touch-action:none;font-family:Inter,system-ui,-apple-system,sans-serif;';
+
+    stage = document.createElement('div');
+    stage.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;';
+
+    im = document.createElement('img');
+    im.src = src;
+    im.alt = 'Expanded image';
+    im.draggable = false;
+    im.style.cssText = 'max-width:92vw;max-height:86vh;object-fit:contain;border-radius:12px;box-shadow:0 25px 70px rgba(0,0,0,.65);transform-origin:center center;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;will-change:transform;transition:transform .1s ease-out;';
+    im.addEventListener('click', function(e){ e.stopPropagation(); });
+    im.addEventListener('dblclick', function(e){
+      e.stopPropagation();
+      if (scale > 1) reset(); else zoom(2.5, e.clientX, e.clientY);
+    });
+    stage.appendChild(im);
+    ov.appendChild(stage);
+
+    var top = document.createElement('div');
+    top.style.cssText = 'position:absolute;top:14px;right:16px;display:flex;gap:8px;z-index:3;';
+    var x = mkBtn('✕', 'Close (Esc)', close);
+    x.style.width = '40px'; x.style.height = '40px';
+    top.appendChild(x);
+    ov.appendChild(top);
+
+    hint = document.createElement('div');
+    hint.textContent = 'Scroll to zoom · Drag to pan · Double-click to toggle';
+    hint.style.cssText = 'position:absolute;bottom:74px;left:50%;transform:translateX(-50%);color:#e5e7eb;font-size:11px;letter-spacing:.04em;opacity:.55;white-space:nowrap;pointer-events:none;z-index:2;transition:opacity .15s;';
+    ov.appendChild(hint);
+
+    var bar = document.createElement('div');
+    bar.style.cssText = 'position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:9999px;background:rgba(15,20,35,.88);border:1px solid rgba(250,204,21,.25);box-shadow:0 10px 40px rgba(0,0,0,.5);z-index:3;';
+    bar.appendChild(mkBtn('−', 'Zoom out', function(){ zoom(1 / 1.25); }));
+    pct = document.createElement('span');
+    pct.textContent = '100%';
+    pct.style.cssText = 'min-width:46px;text-align:center;font-size:11px;font-weight:700;letter-spacing:.06em;color:#e5e7eb;';
+    bar.appendChild(pct);
+    bar.appendChild(mkBtn('+', 'Zoom in', function(){ zoom(1.25); }));
+    bar.appendChild(mkBtn('⟲', 'Reset zoom (0)', reset));
+    bar.appendChild(mkBtn('⤢', 'Toggle fit / 2x', function(){ if (scale > 1) reset(); else zoom(2); }));
+    ov.appendChild(bar);
+
+    /* backdrop click closes (image clicks are stopped above) */
+    ov.addEventListener('click', function(e){
+      if (e.target === ov || e.target === stage) close();
+    });
+
+    /* wheel zoom toward cursor */
+    ov.addEventListener('wheel', function(e){
+      if (!ov) return;
+      e.preventDefault();
+      zoom(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY);
+    }, { passive: false });
+
+    /* drag pan + two-finger pinch */
+    stage.addEventListener('pointerdown', function(e){
+      if (e.target !== im) return;
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var keys = Object.keys(pts);
+      if (keys.length === 1 && scale > 1){
+        drag = { id: e.pointerId, x: e.clientX, y: e.clientY, ox: tx, oy: ty };
+        try { stage.setPointerCapture(e.pointerId); } catch(_) {}
+        paint();
+      } else if (keys.length === 2){
+        drag = null;
+        var a = pts[keys[0]], b = pts[keys[1]];
+        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1 };
+        paint();
+      }
+    });
+    stage.addEventListener('pointermove', function(e){
+      if (pts[e.pointerId]){
+        pts[e.pointerId].x = e.clientX;
+        pts[e.pointerId].y = e.clientY;
+      }
+      var keys = Object.keys(pts);
+      if (pinch && keys.length >= 2){
+        var a = pts[keys[0]], b = pts[keys[1]];
+        var d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+        zoom(d / pinch.d, (a.x + b.x) / 2, (a.y + b.y) / 2);
+        pinch.d = d;
+        return;
+      }
+      if (drag && e.pointerId === drag.id){
+        tx = drag.ox + (e.clientX - drag.x);
+        ty = drag.oy + (e.clientY - drag.y);
+        paint();
+      }
+    });
+    function endPointer(e){
+      if (pts[e.pointerId]) delete pts[e.pointerId];
+      if (Object.keys(pts).length < 2) pinch = null;
+      if (drag && e.pointerId === drag.id) drag = null;
+      paint();
+    }
+    stage.addEventListener('pointerup', endPointer);
+    stage.addEventListener('pointercancel', endPointer);
+    stage.addEventListener('pointerleave', endPointer);
+
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(ov);
+    try { document.documentElement.classList.add('fas-lightbox-open'); } catch(e) {}
+    try { if (window.__fasKeepCursorOnTop) window.__fasKeepCursorOnTop(ov); } catch(e) {}
+    requestAnimationFrame(function(){ if (ov) ov.style.opacity = '1'; });
+    paint();
+  };
+})();

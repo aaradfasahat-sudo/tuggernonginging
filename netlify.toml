@@ -1,53 +1,13 @@
 [build]
   publish = "."
   functions = "netlify/functions"
+  environment = { NODE_VERSION = "20" }
 
-# Route /px to the serverless proxy function (must come before the SPA catch-all)
-[[redirects]]
-  from = "/px"
-  to = "/.netlify/functions/px"
-  status = 200
-  force = true
-
-# Route /suggestions to the serverless suggestions function
-[[redirects]]
-  from = "/suggestions"
-  to = "/.netlify/functions/suggestions"
-  status = 200
-  force = true
-
-# Static pages (extensionless → .html)
-[[redirects]]
-  from = "/blackmarket"
-  to = "/blackmarket.html"
-  status = 200
-
-[[redirects]]
-  from = "/proxy"
-  to = "/proxy.html"
-  status = 200
-
-[[redirects]]
-  from = "/proxy1"
-  to = "/proxy1.html"
-  status = 200
-
-[[redirects]]
-  from = "/proxy2"
-  to = "/proxy2.html"
-  status = 200
-
-# SPA catch-all — serve index.html for all other paths
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-# Long-lived cache for hashed asset bundles (JS / CSS)
+# Short cache for hashed asset bundles — always revalidate to pick up new deploys
 [[headers]]
   for = "/assets/*"
   [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
+    Cache-Control = "public, max-age=0, must-revalidate"
 
 # Short cache for root-level files that can change
 [[headers]]
@@ -81,11 +41,29 @@
   [headers.values]
     Cache-Control = "public, max-age=86400"
 
-# Security headers for all pages
+# Rewards page must never be cached (was a stale-cache bug locally)
 [[headers]]
-  for = "/*"
+  for = "/blackmarket*"
   [headers.values]
-    X-Frame-Options = "SAMEORIGIN"
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# Market page must never be cached
+[[headers]]
+  for = "/market*"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# Security headers for app pages (NOT proxy pages which need frame embedding)
+[[headers]]
+  for = "/"
+  [headers.values]
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Permissions-Policy = "camera=(self), microphone=(self), geolocation=()"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(self), microphone=(self), geolocation=()"

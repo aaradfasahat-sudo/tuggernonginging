@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>BlackMarket - Fasahat's Hub</title>
+<title>Rewards - Galaxy Annihilating CHS Lab</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
@@ -16,6 +16,15 @@ body{background:#0a0a0f;color:#e8e9f0;font-family:Inter,sans-serif;min-height:10
 .bg-glow2{position:fixed;bottom:-30%;left:-20%;width:70vmax;height:70vmax;border-radius:50%;background:radial-gradient(circle,rgba(255,80,0,0.05),transparent 70%);pointer-events:none;z-index:0;animation:glowPulse 8s ease-in-out infinite reverse}
 .bg-glow3{position:fixed;top:50%;left:50%;width:80vmax;height:80vmax;border-radius:50%;background:radial-gradient(circle,rgba(100,0,255,0.04),transparent 70%);pointer-events:none;z-index:0;transform:translate(-50%,-50%);animation:glowPulse 10s ease-in-out infinite}
 @keyframes glowPulse{0%,100%{opacity:0.6;transform:scale(1)}50%{opacity:1;transform:scale(1.1)}}
+
+/* ── Pokémon cards acceptance banner (TOP) ── */
+.pkm-banner{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:18px;text-align:center;padding:22px 24px;margin:0 0 32px;border-radius:20px;overflow:hidden;border:1px solid rgba(255,255,255,0.18);background:linear-gradient(135deg,#7c3aed,#db2777,#f59e0b);background-size:250% 250%;box-shadow:0 10px 40px rgba(124,58,237,0.45);animation:gradShift 6s ease-in-out infinite}
+@keyframes gradShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.pkm-banner::after{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,rgba(255,255,255,0.18),transparent 70%);pointer-events:none}
+.pkm-banner .pkm-text{position:relative;z-index:1}
+.pkm-banner strong{display:block;font-size:24px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,0.4);margin-bottom:4px}
+.pkm-banner .pkm-text span{display:block;font-size:14px;font-weight:600;color:rgba(255,255,255,0.92)}
+.pkm-banner .pkm-emoji{position:relative;z-index:1;font-size:40px;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.4))}
 
 .container{max-width:720px;width:100%;padding:60px 24px;position:relative;z-index:1}
 
@@ -100,41 +109,59 @@ h1{text-align:center;font-size:42px;font-weight:900;text-transform:uppercase;let
 <div class="bg-glow2"></div>
 <div class="bg-glow3"></div>
 <div class="container">
+  <div class="pkm-banner anim-fade">
+    <span class="pkm-emoji">🎴</span>
+    <div class="pkm-text">
+      <strong>POKÉMON CARDS ACCEPTED FOR PREMIUM!</strong>
+      <span>Trade in your rare Pokémon cards for Lifetime Premium &mdash; talk to the admin</span>
+    </div>
+    <span class="pkm-emoji">🎴</span>
+  </div>
   <a href="/" class="back anim-fade">&larr; Back to Hub</a>
-  <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='none' stroke='%23ffd700' stroke-width='3'/%3E%3Cpath d='M50 10 L55 40 L85 45 L60 65 L68 95 L50 78 L32 95 L40 65 L15 45 L45 40 Z' fill='%23ffd700' opacity='0.9'/%3E%3C/svg%3E" alt="" class="logo">
-  <h1>BlackMarket</h1>
+  <a href="/market" class="back anim-fade" style="margin-left:18px;color:rgba(74,222,128,.65)">Market &rarr;</a>
+  <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23ffd700'/%3E%3Cstop offset='100%25' stop-color='%23ff8c00'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M50 8 L62 36 L93 38 L68 58 L78 90 L50 71 L22 90 L32 58 L7 38 L38 36 Z' fill='url(%23g)' stroke='%23ffd700' stroke-width='1.5' opacity='0.95'/%3E%3C/svg%3E" alt="" class="logo">
+  <h1>Rewards</h1>
   <p class="sub">Exclusive premium content &amp; tools</p>
   <div class="divider"></div>
 
   <!-- ── Invite Section (FIRST) ── -->
   <div class="section-title anim-slide-d1">Referral Program</div>
-  <div class="invite-section anim-slide-d2">
+  <div class="invite-section anim-slide-d2" id="referral">
     <h2>Invite &amp; Earn Free Premium</h2>
-    <p>Invite <strong>5 people</strong> to Fasahat's Hub and you'll receive <strong>21 days of Premium</strong> access completely free.</p>
+    <p>Invite <strong>5 people</strong> to Galaxy Annihilating CHS Lab and you'll receive <strong>15 days of Premium</strong> access completely free &mdash; including the Blooket Hack guide (Fishing Frenzy, Gold Quest &amp; Crypto Hack).</p>
     <div class="invite-highlight">
       <div class="big">Invite 5 People</div>
-      <div class="small">Get 21 Days Premium Free</div>
+      <div class="small">Get 15 Days Premium Free</div>
     </div>
     <p style="margin-bottom:8px">Each person you invite must fill out the form below so we can track your referrals:</p>
     <div class="invite-form-wrap" id="formWrap">
       <div class="form-loader" id="formLoader">Loading form...</div>
-      <iframe id="gfForm" src="https://docs.google.com/forms/d/e/1FAIpQLSfJXAzf2fDPmRlUFm2IeLdMZs-AyBcuF4r0Kghr8tC0u8f8ng/viewform?embedded=true" frameborder="0" marginheight="0" marginwidth="0" onload="document.getElementById('formLoader').classList.add('hide');this.classList.add('loaded')">Loading…</iframe>
+      <iframe id="gfForm" src="https://docs.google.com/forms/d/e/1FAIpQLSfJXAzf2fDPmRlUFm2IeLdMZs-AyBcuF4r0Kghr8tC0u8f8ng/viewform?embedded=true" allow="popups" frameborder="0" marginheight="0" marginwidth="0" onload="document.getElementById('formLoader').classList.add('hide');this.classList.add('loaded')">Loading…</iframe>
+      <p style="text-align:center;margin-top:12px;font-size:12px;color:rgba(255,255,255,0.35)">
+        Sign-in not working?
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSfJXAzf2fDPmRlUFm2IeLdMZs-AyBcuF4r0Kghr8tC0u8f8ng/viewform" target="_blank" rel="noopener" style="color:#4a9eff;text-decoration:underline">Open form in new tab</a>
+      </p>
     </div>
     <div class="warning-banner">
       <span class="warning-icon">⚠️</span>
       <div class="warning-text">
-        <strong>Fraud Prevention:</strong> If you cheat by vouching for yourself or claiming more than one person that you actually invited, <strong>you will be permanently banned</strong> from Fasahat's Hub with no appeal.
+         <strong>Fraud Prevention:</strong> If you cheat by vouching for yourself or claiming more than one person that you actually invited, <strong>you will be permanently banned</strong> from Galaxy Annihilating CHS Lab with no appeal.
       </div>
     </div>
   </div>
 
   <!-- ── Feature Grid ── -->
-  <div class="section-title anim-slide-d3">Premium Features</div>
+  <div class="section-title anim-slide-d3">Premium Features &mdash; Blooket Hack Included</div>
   <div class="grid">
+    <div class="card full-card anim-slide-d3">
+      <span class="card-icon">🎮</span>
+      <h3 style="margin-bottom:6px">Blooket Hack Guide</h3>
+      <p>Fishing Frenzy, Gold Quest &amp; Crypto Hack strategies included with Premium</p>
+    </div>
     <div class="card anim-slide-d3">
       <span class="card-icon">🎬</span>
       <h3>150 Premium Movies</h3>
-      <p>Full library of premium movies unlocked instantly</p>
+      <p>Full library of premium movies, unlocked instantly</p>
     </div>
     <div class="card anim-slide-d4">
       <span class="card-icon">📺</span>
@@ -142,37 +169,43 @@ h1{text-align:center;font-size:42px;font-weight:900;text-transform:uppercase;let
       <p>All premium television content at your fingertips</p>
     </div>
     <div class="card anim-slide-d4">
-      <span class="card-icon">🎮</span>
-      <h3>670+ Premium Games</h3>
-      <p>Full game library including exclusive titles</p>
+      <span class="card-icon">⛩️</span>
+      <h3>40 Premium Anime</h3>
+      <p>The full premium anime collection, unlocked</p>
+    </div>
+    <div class="card anim-slide-d5">
+      <span class="card-icon">📚</span>
+      <h3>Premium Mangas</h3>
+      <p>Premium manga series in the library</p>
     </div>
     <div class="card anim-slide-d5">
       <span class="card-icon">🌐</span>
-      <h3>14 Premium Proxies</h3>
-      <p>Web proxies for unrestricted browsing</p>
+      <h3>Web Premium Access</h3>
+      <p>Premium-only folders, proxies &amp; sites inside the Web hub</p>
     </div>
-    <div class="card anim-slide-d5">
+    <div class="card anim-slide-d6">
       <span class="card-icon">🤖</span>
       <h3>AI Tools</h3>
-      <p>Access to exclusive AI-powered features</p>
+      <p>ChatGPT Free &amp; Repixify in the Premium Hub</p>
     </div>
     <div class="card anim-slide-d6">
-      <span class="card-icon">⚡</span>
-      <h3>Limited-Time Content</h3>
-      <p>Exclusive time-limited drops &amp; content</p>
+      <span class="card-icon">✨</span>
+      <h3>Premium Badge</h3>
+      <p>Golden premium badge next to your name</p>
     </div>
-    <div class="card anim-slide-d6">
-      <span class="card-icon">📚</span>
-      <h3>Blooket Hack Guide</h3>
-      <p>Fishing Frenzy, Gold Quest &amp; Crypto Hack strategies</p>
+    <div class="card anim-slide-d7">
+      <span class="card-icon">🚫</span>
+      <h3>Fewer Ads</h3>
+      <p>Pop-up ads much less often &mdash; 15 clicks vs 5</p>
     </div>
     <div class="card full-card anim-slide-d7">
       <h3 style="margin-bottom:12px">Lifetime Access</h3>
       <div class="price">$2.00 AUD</div>
-      <div class="price-sub">One-time payment, no recurring fees</div>
-      <a href="/" style="margin-top:20px" class="btn btn-gold" onclick="alert('Contact Fasahat to get premium');return false">Get Premium</a>
+      <div class="price-sub">One-time payment, no recurring fees &mdash; or trade Pokémon cards</div>
+      <a href="/" style="margin-top:20px" class="btn btn-gold" onclick="alert('Contact the admin to get premium');return false">Get Premium</a>
     </div>
   </div>
+
 </div>
 
 <script>
@@ -195,5 +228,6 @@ h1{text-align:center;font-size:42px;font-weight:900;text-transform:uppercase;let
   window.addEventListener('resize',r);r();i();d();
 })();
 </script>
+<script src="/fas-cursor.js?v=6" defer></script>
 </body>
 </html>

@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Market - Galaxy Annihilating CHS Lab</title>
+<meta name="description" content="The green market for Galaxy Annihilating CHS Lab: premium passes, animated cursor styles, custom backgrounds, fonts and unlockable content.">
+<link rel="icon" href="/icon-192.png">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Orbitron:wght@600;700;800;900&display=swap');
+
+:root{
+  --bg:#040b07;
+  --bg-deep:#020604;
+  --panel:rgba(10,38,27,.34);
+  --panel-solid:#0a1d15;
+  --line:rgba(74,222,128,.14);
+  --line-strong:rgba(74,222,128,.34);
+  --green:#22c55e;
+  --green-bright:#4ade80;
+  --green-soft:#86efac;
+  --mint:#d1fae5;
+  --teal:#14b8a6;
+  --text:#e9f7ef;
+  --dim:rgba(233,247,239,.52);
+  --dimmer:rgba(233,247,239,.32);
+  --shadow:0 24px 80px rgba(0,0,0,.55);
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  min-height:100vh;
+  overflow-x:hidden;
+  background:
+    radial-gradient(circle at 18% 4%,rgba(34,197,94,.12),transparent 34rem),
+    radial-gradient(circle at 82% 26%,rgba(20,184,166,.09),transparent 30rem),
+    radial-gradient(circle at 50% 110%,rgba(16,185,129,.10),transparent 40rem),
+    var(--bg);
+  color:var(--text);
+  font-family:Inter,system-ui,-apple-system,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background-image:
+    linear-gradient(rgba(74,222,128,.035) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(74,222,128,.035) 1px,transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(circle at 50% 18%,#000 0%,transparent 78%);
+  -webkit-mask-image:radial-gradient(circle at 50% 18%,#000 0%,transparent 78%);
+}
+::selection{background:rgba(34,197,94,.35);color:#fff}
+::-webkit-scrollbar{width:10px}
+::-webkit-scrollbar-track{background:var(--bg-deep)}
+::-webkit-scrollbar-thumb{background:rgba(34,197,94,.28);border-radius:99px;border:2px solid var(--bg-deep)}
+::-webkit-scrollbar-thumb:hover{background:rgba(34,197,94,.5)}
+
+#particles-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.9}
+
+.aurora{position:fixed;border-radius:50%;pointer-events:none;z-index:0;filter:blur(10px);animation:drift 14s ease-in-out infinite}
+.aurora.a{width:60vmax;height:60vmax;top:-32vmax;left:-18vmax;background:radial-gradient(circle,rgba(34,197,94,.14),transparent 68%)}
+.aurora.b{width:54vmax;height:54vmax;bottom:-30vmax;right:-16vmax;background:radial-gradient(circle,rgba(20,184,166,.11),transparent 68%);animation-delay:-6s}
+.aurora.c{width:38vmax;height:38vmax;top:38%;left:54%;background:radial-gradient(circle,rgba(134,239,172,.06),transparent 70%);animation-delay:-10s}
+@keyframes drift{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(2vmax,-2vmax,0) scale(1.08)}}
+
+.shell{position:relative;z-index:2;width:min(1120px,100%);margin:0 auto;padding:0 24px 72px}
+
+.topline{position:fixed;top:0;left:0;right:0;height:2px;z-index:50;background:linear-gradient(90deg,transparent,#22c55e 30%,#86efac 50%,#22c55e 70%,transparent);box-shadow:0 0 18px rgba(34,197,94,.55)}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:26px 0 18px}
+.brand{display:flex;align-items:center;gap:11px;color:var(--text);text-decoration:none;min-width:0}
+.brand-mark{width:38px;height:38px;flex:0 0 38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(150deg,rgba(74,222,128,.2),rgba(16,185,129,.05));border:1px solid var(--line-strong);box-shadow:0 0 26px rgba(34,197,94,.16);color:var(--green-bright)}
+.brand-mark svg{width:21px;height:21px}
+.brand-copy{display:flex;flex-direction:column;line-height:1.15;min-width:0}
+.brand-copy strong{font-size:11px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:var(--green-soft);white-space:nowrap}
+.brand-copy span{font-size:10px;color:var(--dimmer);letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toplinks{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.toplink{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:99px;border:1px solid transparent;color:var(--dim);text-decoration:none;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;transition:color .2s,border-color .2s,background .2s}
+.toplink:hover{color:var(--green-bright);border-color:var(--line);background:rgba(34,197,94,.06)}
+.toplink.green{color:var(--green-bright);border-color:var(--line-strong);background:rgba(34,197,94,.08)}
+.toplink.green:hover{background:rgba(34,197,94,.15)}
+
+/* ── ticker ── */
+.ticker{position:relative;z-index:2;overflow:hidden;border-top:1px solid rgba(34,197,94,.22);border-bottom:1px solid rgba(34,197,94,.18);background:linear-gradient(90deg,rgba(6,78,59,.55),rgba(5,46,34,.7),rgba(6,78,59,.55));backdrop-filter:blur(8px)}
+.ticker-track{display:flex;align-items:center;width:max-content;white-space:nowrap;animation:marquee 32s linear infinite}
+.ticker:hover .ticker-track{animation-play-state:paused}
+.ticker-set{display:flex;align-items:center;gap:28px;padding:11px 28px}
+.ticker-item{display:inline-flex;align-items:center;gap:10px;color:rgba(209,250,229,.72);font-size:10px;font-weight:800;letter-spacing:.2em;text-transform:uppercase}
+.ticker-item b{color:#fff;font-weight:900}
+.ticker-dot{width:5px;height:5px;border-radius:50%;background:var(--green-bright);box-shadow:0 0 9px var(--green-bright)}
+@keyframes marquee{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
+
+/* ── hero ── */
+.hero{position:relative;z-index:2;padding:64px 0 38px;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:42px;align-items:end}
+.kicker{display:inline-flex;align-items:center;gap:9px;padding:7px 12px;border:1px solid var(--line);border-radius:99px;background:rgba(34,197,94,.055);color:var(--green-soft);font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;margin-bottom:20px}
+.kicker .live{width:6px;height:6px;border-radius:50%;background:var(--green-bright);box-shadow:0 0 10px var(--green-bright);animation:blink 2.2s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:.45;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}
+h1.market{
+  font-family:Orbitron,Inter,sans-serif;
+  font-size:clamp(62px,13vw,132px);
+  line-height:.84;
+  letter-spacing:-.035em;
+  font-weight:900;
+  background:linear-gradient(135deg,#f0fdf4 0%,#86efac 32%,#22c55e 62%,#0f766e 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  -webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 10px 42px rgba(34,197,94,.22));
+  margin-left:-5px;
+}
+.hero-sub{max-width:600px;margin-top:22px;color:var(--dim);font-size:15px;line-height:1.7}
+.hero-sub strong{color:var(--mint);font-weight:700}
+.hero-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:28px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:14px 24px;border-radius:12px;border:1px solid transparent;font-size:11px;font-weight:900;letter-spacing:.13em;text-transform:uppercase;text-decoration:none;cursor:pointer;transition:transform .2s,box-shadow .2s,background .2s,border-color .2s;font-family:inherit}
+.btn svg{width:15px;height:15px}
+.btn-primary{background:linear-gradient(135deg,#86efac,#22c55e 55%,#10b981);color:#02150c;box-shadow:0 10px 34px rgba(34,197,94,.26),inset 0 1px 0 rgba(255,255,255,.35)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 16px 46px rgba(34,197,94,.38),inset 0 1px 0 rgba(255,255,255,.4)}
+.btn-ghost{border-color:var(--line-strong);background:rgba(34,197,94,.055);color:var(--green-soft)}
+.btn-ghost:hover{transform:translateY(-2px);background:rgba(34,197,94,.12);border-color:rgba(74,222,128,.55)}
+.btn:focus-visible,.toplink:focus-visible{outline:2px solid var(--green-bright);outline-offset:4px}
+.perk-icon svg,.trade-icon svg,.btn svg,.pass-list svg,.brand-mark svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+.hero-side{position:relative;align-self:stretch;display:flex;flex-direction:column;justify-content:flex-end;gap:14px;padding-bottom:6px}
+.hero-card{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:18px;background:linear-gradient(155deg,rgba(16,185,129,.10),rgba(4,11,7,.5));padding:17px 18px}
+.hero-card::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 88% 0%,rgba(134,239,172,.16),transparent 60%);pointer-events:none}
+.hero-card span{display:block;font-size:9px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--dimmer);margin-bottom:7px}
+.hero-card strong{display:block;font-size:19px;font-weight:900;letter-spacing:-.02em;color:var(--mint)}
+.hero-card p{font-size:11px;color:var(--dim);line-height:1.5;margin-top:4px}
+.hero-card .bar{height:4px;border-radius:99px;background:rgba(34,197,94,.12);margin-top:12px;overflow:hidden}
+.hero-card .bar i{display:block;height:100%;width:82%;border-radius:99px;background:linear-gradient(90deg,#10b981,#86efac);box-shadow:0 0 12px rgba(74,222,128,.5)}
+
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:rgba(4,11,7,.5);margin:8px 0 54px}
+.stat{padding:18px 20px;background:rgba(34,197,94,.025)}
+.stat b{display:block;font-family:Orbitron,Inter,sans-serif;font-size:22px;color:var(--mint);letter-spacing:.02em}
+.stat span{display:block;margin-top:5px;font-size:9px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--dimmer)}
+
+/* ── sections ── */
+section{position:relative;z-index:2}
+.section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin:0 0 20px}
+.section-kicker{display:block;font-size:9px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:var(--green);margin-bottom:7px}
+.section-head h2{font-size:clamp(24px,3.2vw,34px);font-weight:900;letter-spacing:-.03em;color:#fff}
+.section-head p{max-width:420px;color:var(--dim);font-size:12px;line-height:1.6;text-align:right}
+
+/* ── premium pass ── */
+.pass{position:relative;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(260px,.65fr);gap:0;border:1px solid rgba(74,222,128,.32);border-radius:22px;overflow:hidden;background:linear-gradient(135deg,rgba(6,78,59,.55),rgba(4,20,13,.9) 58%,rgba(5,46,34,.6));box-shadow:var(--shadow);margin-bottom:56px}
+.pass::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 12% 0%,rgba(134,239,172,.16),transparent 45%),radial-gradient(circle at 88% 100%,rgba(20,184,166,.12),transparent 45%);pointer-events:none}
+.pass-left{position:relative;padding:34px 34px 32px}
+.pass-flag{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:99px;background:rgba(34,197,94,.14);border:1px solid rgba(74,222,128,.3);color:var(--green-soft);font-size:9px;font-weight:900;letter-spacing:.19em;text-transform:uppercase}
+.pass-flag .dot{width:5px;height:5px;border-radius:50%;background:var(--green-bright);box-shadow:0 0 8px var(--green-bright)}
+.pass h3{font-size:clamp(28px,4vw,44px);line-height:1;letter-spacing:-.04em;font-weight:900;color:#fff;margin:18px 0 10px}
+.pass h3 em{font-style:normal;color:var(--green-bright)}
+.pass p.lead{max-width:520px;color:var(--dim);font-size:13px;line-height:1.7}
+.pass-list{display:grid;grid-template-columns:1fr 1fr;gap:9px 18px;list-style:none;margin-top:22px;max-width:560px}
+.pass-list li{display:flex;align-items:flex-start;gap:8px;color:rgba(233,247,239,.74);font-size:11px;line-height:1.5}
+.pass-list svg{width:13px;height:13px;flex:0 0 13px;margin-top:1px;color:var(--green-bright)}
+.pass-right{position:relative;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:13px;padding:34px 26px;border-left:1px solid rgba(74,222,128,.18);background:rgba(2,10,6,.28);text-align:center}
+.pass-price{font-family:Orbitron,Inter,sans-serif;font-size:52px;font-weight:900;line-height:.95;letter-spacing:-.05em;color:#fff;text-shadow:0 0 34px rgba(74,222,128,.28)}
+.pass-price small{font-family:Inter,sans-serif;font-size:11px;font-weight:800;letter-spacing:.15em;color:var(--dimmer);display:block;margin-top:7px}
+.pass-right .btn{width:100%}
+.pass-note{font-size:10px;color:var(--dimmer);line-height:1.5;max-width:190px}
+.pass-note b{color:var(--green-soft)}
+.pass-ribbon{position:absolute;top:17px;right:-35px;transform:rotate(38deg);background:linear-gradient(90deg,#10b981,#86efac);color:#02150c;font-size:8px;font-weight:900;letter-spacing:.17em;text-transform:uppercase;padding:6px 40px;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+
+/* ── cards ── */
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:56px}
+.grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.perk{position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:196px;padding:20px;border:1px solid var(--line);border-radius:17px;background:linear-gradient(160deg,rgba(16,185,129,.055),rgba(255,255,255,.018));transition:transform .25s,border-color .25s,background .25s,box-shadow .25s}
+.perk::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(134,239,172,.36),transparent);opacity:.55;transition:opacity .25s}
+.perk:hover{transform:translateY(-4px);border-color:rgba(74,222,128,.38);background:linear-gradient(160deg,rgba(16,185,129,.1),rgba(255,255,255,.02));box-shadow:0 18px 46px rgba(0,0,0,.3),0 0 34px rgba(34,197,94,.07)}
+.perk:hover::before{opacity:1}
+.perk-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:15px}
+.perk-icon{width:38px;height:38px;flex:0 0 38px;border-radius:11px;display:grid;place-items:center;color:var(--green-bright);background:rgba(34,197,94,.09);border:1px solid rgba(74,222,128,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.perk-icon svg{width:19px;height:19px}
+.perk-tag{font-size:8px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;padding:5px 8px;border-radius:99px;white-space:nowrap}
+.tag-premium{color:var(--green-soft);background:rgba(34,197,94,.1);border:1px solid rgba(74,222,128,.22)}
+.tag-free{color:var(--mint);background:rgba(20,184,166,.08);border:1px solid rgba(20,184,166,.22)}
+.perk h3{font-size:14px;font-weight:800;letter-spacing:.01em;color:#fff;margin-bottom:6px}
+.perk p{font-size:11px;line-height:1.6;color:var(--dim);flex:1}
+.perk-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(74,222,128,.09);font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--dimmer)}
+.perk-foot b{color:var(--green-soft);font-weight:900}
+.cursor-preview{display:flex;align-items:center;gap:7px;margin-top:14px}
+.cursor-preview img{width:23px;height:23px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(74,222,128,.25));opacity:.92}
+.cursor-preview span{font-size:9px;color:var(--dimmer);margin-left:2px}
+
+/* ── trade ── */
+.trade{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:56px}
+.trade-card{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:18px;padding:24px;background:linear-gradient(150deg,rgba(6,78,59,.28),rgba(4,11,7,.5))}
+.trade-card::after{content:"";position:absolute;right:-45px;bottom:-60px;width:170px;height:170px;border-radius:50%;background:radial-gradient(circle,rgba(34,197,94,.14),transparent 68%);pointer-events:none}
+.trade-card h3{font-size:18px;font-weight:900;color:#fff;letter-spacing:-.02em;margin-bottom:8px}
+.trade-card p{font-size:12px;line-height:1.7;color:var(--dim);max-width:420px}
+.trade-card .btn{margin-top:18px;padding:11px 17px;font-size:10px}
+.trade-icon{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:var(--green-bright);background:rgba(34,197,94,.1);border:1px solid rgba(74,222,128,.2);margin-bottom:14px}
+.trade-icon svg{width:18px;height:18px}
+
+/* ── faq ── */
+.faq{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:rgba(4,11,7,.42);margin-bottom:56px}
+.faq details{border-bottom:1px solid rgba(74,222,128,.09)}
+.faq details:last-child{border-bottom:none}
+.faq summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:17px 20px;color:rgba(233,247,239,.82);font-size:12px;font-weight:700;transition:background .2s,color .2s}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary:hover{background:rgba(34,197,94,.05);color:#fff}
+.faq summary .plus{width:16px;height:16px;position:relative;flex:0 0 16px;color:var(--green-bright);transition:transform .25s}
+.faq summary .plus::before,.faq summary .plus::after{content:"";position:absolute;left:50%;top:50%;background:currentColor;border-radius:2px;transform:translate(-50%,-50%)}
+.faq summary .plus::before{width:12px;height:1.5px}
+.faq summary .plus::after{width:1.5px;height:12px;transition:opacity .2s}
+.faq details[open] summary .plus{transform:rotate(90deg)}
+.faq details[open] summary .plus::after{opacity:0}
+.faq .answer{padding:0 20px 18px;color:var(--dim);font-size:12px;line-height:1.75;max-width:780px}
+
+/* ── footer ── */
+footer{position:relative;z-index:2;border-top:1px solid rgba(74,222,128,.12);padding:24px 0 0;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+.foot-links{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.foot-links a{color:var(--dim);text-decoration:none;font-size:11px;font-weight:700;letter-spacing:.05em;transition:color .2s}
+.foot-links a:hover{color:var(--green-bright)}
+.foot-note{font-size:10px;color:rgba(233,247,239,.25);letter-spacing:.04em}
+
+@media (max-width:960px){
+  .hero{grid-template-columns:1fr;gap:26px;padding-top:42px}
+  .hero-side{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-bottom:0}
+  .hero-card{padding:14px 15px}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pass{grid-template-columns:1fr}
+  .pass-right{border-left:none;border-top:1px solid rgba(74,222,128,.18);flex-direction:row;flex-wrap:wrap;justify-content:space-between;text-align:left}
+  .pass-price{font-size:42px}
+  .pass-right .btn{width:auto;min-width:190px}
+  .pass-note{max-width:200px;text-align:left}
+  .pass-ribbon{top:15px;right:-38px}
+  .section-head{align-items:flex-start;flex-direction:column;gap:8px}
+  .section-head p{text-align:left}
+}
+@media (max-width:640px){
+  .shell{padding:0 16px 54px}
+  .topbar{padding:20px 0 14px}
+  .brand-copy strong{font-size:10px}
+  .toplink{padding:7px 10px;font-size:10px}
+  .hero{padding-top:30px}
+  h1.market{font-size:clamp(48px,16.5vw,96px);letter-spacing:-.05em}
+  .hero-sub{font-size:13px}
+  .hero-actions .btn{flex:1}
+  .hero-side{grid-template-columns:1fr}
+  .stats{grid-template-columns:1fr;margin-bottom:40px}
+  .stat{padding:14px 16px}
+  .stat b{font-size:19px}
+  .grid,.grid.two,.trade{grid-template-columns:1fr}
+  .perk{min-height:auto}
+  .pass-left{padding:24px 20px}
+  .pass-list{grid-template-columns:1fr}
+  .pass-right{padding:22px 20px;flex-direction:column;align-items:stretch;text-align:center}
+  .pass-right .btn{width:100%}
+  .pass-note{max-width:none}
+  .pass-ribbon{display:none}
+  .trade-card{padding:20px}
+  .faq summary{padding:15px 16px;font-size:11px}
+  .faq .answer{padding:0 16px 16px}
+  footer{flex-direction:column;align-items:flex-start}
+}
+@media (max-width:480px){
+  .topbar{flex-wrap:wrap;gap:12px}
+  .toplinks{width:100%;justify-content:flex-start;gap:6px}
+  .brand-copy span{display:none}
+  .toplink{padding:7px 10px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .aurora,.ticker-track,.kicker .live{animation:none}
+  .ticker-track{width:auto;overflow-x:auto}
+  .ticker-set{flex-wrap:wrap}
+  *{transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+<div class="topline"></div>
+<canvas id="particles-canvas"></canvas>
+<div class="aurora a"></div>
+<div class="aurora b"></div>
+<div class="aurora c"></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-bag" viewBox="0 0 24 24"><path d="M4.5 8.2h15l-1.1 11.1a2 2 0 0 1-2 1.8H7.6a2 2 0 0 1-2-1.8L4.5 8.2Z"/><path d="M8.4 8.2V6.6a3.6 3.6 0 0 1 7.2 0v1.6"/><path d="m9 14 2 2 4-4"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7"/></symbol>
+  <symbol id="i-cursor" viewBox="0 0 24 24"><path d="m5 3 6.2 17 2.4-6.8L20 10.4 5 3Z"/><path d="m13.6 13.2 4.2 4.2"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.2" cy="9" r="1.4"/><path d="m21 15-4.8-4.8L6 20"/></symbol>
+  <symbol id="i-type" viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M12 6v14"/><path d="M8 20h8"/><path d="M4 6v3"/><path d="M20 6v3"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></symbol>
+  <symbol id="i-badge" viewBox="0 0 24 24"><path d="m12 3 2.3 4.7 5.2.8-3.8 3.7.9 5.2-4.6-2.4-4.6 2.4.9-5.2-3.8-3.7 5.2-.8L12 3Z"/></symbol>
+  <symbol id="i-ads" viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.4 3.2 7.8 7.5 9.5 4.3-1.7 7.5-5.1 7.5-9.5V6L12 3Z"/><path d="m8.8 12 2.2 2.2 4.2-4.4"/></symbol>
+  <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16"/><path d="M17 4v16"/><path d="M3 9h4"/><path d="M3 15h4"/><path d="M17 9h4"/><path d="M17 15h4"/></symbol>
+  <symbol id="i-tv" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12.5" rx="2"/><path d="M9 21h6"/><path d="M12 17.5V21"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"/><path d="m18.5 15 .9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9.9-2.6Z"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16.5H6.5A2.5 2.5 0 0 0 4 22V5.5Z"/><path d="M4 18.5A2.5 2.5 0 0 1 6.5 16H20"/><path d="M8 7h8"/><path d="M8 10.5h5"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18Z"/></symbol>
+  <symbol id="i-chip" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 1v3"/><path d="M15 1v3"/><path d="M9 20v3"/><path d="M15 20v3"/><path d="M1 9h3"/><path d="M1 15h3"/><path d="M20 9h3"/><path d="M20 15h3"/></symbol>
+  <symbol id="i-game" viewBox="0 0 24 24"><path d="M7.5 8h9a5 5 0 0 1 4.5 7.2l-.8 1.8a2.4 2.4 0 0 1-4 .6L14 15h-4l-2.2 2.6a2.4 2.4 0 0 1-4-.6l-.8-1.8A5 5 0 0 1 7.5 8Z"/><path d="M8 11v3"/><path d="M6.5 12.5h3"/><circle cx="16.5" cy="11.7" r=".8"/><circle cx="18.2" cy="13.6" r=".8"/></symbol>
+  <symbol id="i-trade" viewBox="0 0 24 24"><path d="M4 8h14"/><path d="m14 4 4 4-4 4"/><path d="M20 16H6"/><path d="m10 12-4 4 4 4"/></symbol>
+  <symbol id="i-gift" viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="12" rx="1.5"/><path d="M12 9v12"/><path d="M3 13h18"/><path d="M7.5 9C5.6 9 4 7.6 4 6.1 4 4.9 5 4 6.2 4 8.6 4 11 6 12 9c1-3 3.4-5 5.8-5C19 4 20 4.9 20 6.1 20 7.6 18.4 9 16.5 9"/></symbol>
+</svg>
+
+<div class="shell">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Galaxy Annihilating CHS Lab home">
+      <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-bag"/></svg></span>
+      <span class="brand-copy">
+        <strong>Green Market</strong>
+        <span>Galaxy Annihilating CHS Lab</span>
+      </span>
+    </a>
+    <nav class="toplinks" aria-label="Market navigation">
+      <a class="toplink" href="/">Hub</a>
+      <a class="toplink" href="/blackmarket">Rewards</a>
+      <a class="toplink green" href="#perks">Browse</a>
+    </nav>
+  </header>
+</div>
+
+<div class="ticker" aria-hidden="true">
+  <div class="ticker-track">
+    <div class="ticker-set">
+      <span class="ticker-item"><i class="ticker-dot"></i><b>Premium Pass</b> &mdash; $2 AUD lifetime</span>
+      <span class="ticker-item"><i class="ticker-dot"></i><b>Cursor FX</b> Fire / Electric / Water / Devil</span>
+      <span class="ticker-item"><i class="ticker-dot"></i><b>Custom backgrounds</b> Upload your own</span>
+      <span class="ticker-item"><i class="ticker-dot"></i><b>Custom fonts</b> Presets or WOFF2</span>
+      <span class="ticker-item"><i class="ticker-dot"></i><b>Pok&eacute;mon cards</b> accepted for Premium</span>
+      <span class="ticker-item"><i class="ticker-dot"></i><b>Fewer ads</b> 15 clicks vs 5</span>
+    </div>
+    <div class="ticker-set">
+      <span class="ticker-item"><i class="ticker-dot"></i><b>Premium Pass</b> &mdash; $2 AUD lifetime</span>
+      <span class="ticker-item"><i class="ticker-dot"></i><b>Cursor FX</b> Fire / Electric / Water / Devil</span>
+      <span class="ticker-item"><i class="ticker-dot"></i><b>Custom backgrounds</b> Upload your own</span>
+      <span class="ticker-item"><i class="ticker-dot"></i><b>Custom fonts</b> Presets or WOFF2</span>
+      <span class="ticker-item"><i class="ticker-dot"></i><b>Pok&eacute;mon cards</b> accepted for Premium</span>
+      <span class="ticker-item"><i class="ticker-dot"></i><b>Fewer ads</b> 15 clicks vs 5</span>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+  <main>
+    <section class="hero" aria-labelledby="market-title">
+      <div>
+        <span class="kicker"><i class="live"></i> Market open &middot; lifetime access</span>
+        <h1 class="market" id="market-title">MARKET</h1>
+        <p class="hero-sub">A green room for <strong>premium upgrades, animated cosmetics and unlocked content</strong>. One pass opens every aisle &mdash; no subscription, no recurring fees.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#perks"><svg aria-hidden="true"><use href="#i-bag"/></svg> Browse the market</a>
+          <a class="btn btn-ghost" href="/blackmarket"><svg aria-hidden="true"><use href="#i-arrow"/></svg> Get Premium</a>
+        </div>
+      </div>
+      <aside class="hero-side" aria-label="Market highlights">
+        <div class="hero-card">
+          <span>Most popular</span>
+          <strong>Cosmetics bundle</strong>
+          <p>Cursor FX, backgrounds and fonts &mdash; included with Premium.</p>
+          <div class="bar"><i></i></div>
+        </div>
+        <div class="hero-card">
+          <span>Trade option</span>
+          <strong>Pok&eacute;mon cards</strong>
+          <p>Rare cards can be traded for lifetime Premium.</p>
+        </div>
+      </aside>
+    </section>
+
+    <div class="stats" aria-label="Market statistics">
+      <div class="stat"><b>4</b><span>Cursor styles</span></div>
+      <div class="stat"><b>7+</b><span>Content vaults</span></div>
+      <div class="stat"><b>1</b><span>Lifetime pass</span></div>
+    </div>
+
+    <section aria-labelledby="pass-title" style="margin-bottom:56px">
+      <div class="pass">
+        <div class="pass-ribbon">Best value</div>
+        <div class="pass-left">
+          <span class="pass-flag"><i class="dot"></i> The premium pass</span>
+          <h3 id="pass-title">Open every aisle.<br><em>Pay once.</em></h3>
+          <p class="lead">Premium unlocks the full market: every cosmetic, every premium hub and every guide. It stays on your account for life.</p>
+          <ul class="pass-list">
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg> All animated cursor styles</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg> Custom background &amp; fonts</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg> Premium movies, TV, anime &amp; manga</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg> Web premium folders &amp; tools</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg> Blooket hack guide</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg> Premium badge &amp; fewer ads</li>
+          </ul>
+        </div>
+        <div class="pass-right">
+          <div class="pass-price">$2<small>ONE-TIME &middot; AUD</small></div>
+          <a class="btn btn-primary" href="/blackmarket"><svg aria-hidden="true"><use href="#i-arrow"/></svg> Unlock Premium</a>
+          <p class="pass-note">Or trade rare <b>Pok&eacute;mon cards</b> &mdash; open Rewards for the referral and trade options.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="perks" aria-labelledby="cosmetics-title">
+      <div class="section-head">
+        <div>
+          <span class="section-kicker">Aisle 01</span>
+          <h2 id="cosmetics-title">Cosmetics</h2>
+        </div>
+        <p>Look different. Move different. Make the hub yours.</p>
+      </div>
+      <div class="grid">
+        <article class="perk">
+          <div class="perk-top">
+            <span class="perk-icon"><svg aria-hidden="true"><use href="#i-cursor"/></svg></span>
+            <span class="perk-tag tag-free">Fire free</span>
+          </div>
+          <h3>Cursor FX</h3>
+          <p>Switch between animated Fire, Electric, Water and Devil cursors. Fire is free for everyone.</p>
+          <div class="cursor-preview" aria-hidden="true">
+            <img src="/assets/cursor/fire.png" alt="">
+            <img src="/assets/cursor/electric.png" alt="">
+            <img src="/assets/cursor/water.png" alt="">
+            <img src="/assets/cursor/devil.png" alt="">
+            <span>4 styles</span>
+          </div>
+          <div class="perk-foot"><span>Electric / Water / Devil</span><b>Premium</b></div>
+        </article>
+
+        <article class="perk">
+          <div class="perk-top">
+            <span class="perk-icon"><svg aria-hidden="true"><use href="#i-image"/></svg></span>
+            <span class="perk-tag tag-premium">Premium</span>
+          </div>
+          <h3>Custom Background</h3>
+          <p>Upload your own background image. The market compresses it automatically so the site stays fast.</p>
+          <div class="perk-foot"><span>JPG / PNG / WebP</span><b>Included</b></div>
+        </article>
+
+        <article class="perk">
+          <div class="perk-top">
+            <span class="perk-icon"><svg aria-hidden="true"><use href="#i-type"/></svg></span>
+            <span class="perk-tag tag-premium">Premium</span>
+          </div>
+          <h3>Custom Fonts</h3>
+          <p>Pick a preset font or upload your own WOFF2. Change the family, weight and italic style.</p>
+          <div class="perk-foot"><span>Presets + upload</span><b>Included</b></div>
+        </article>
+
+        <article class="perk">
+          <div class="perk-top">
+            <span class="perk-icon"><svg aria-hidden="true"><use href="#i-user"/></svg></span>
+            <span class="perk-tag tag-premium">Premium</span>
+          </div>
+          <h3>Profile Identity</h3>
+          <p>Set a custom display name and profile picture. Changes follow your posts, comments and DMs.</p>
+          <div class="perk-foot"><span>Name + avatar</span><b>Included</b></div>
+        </article>
+
+        <article class="perk">
+          <div class="perk-top">
+            <span class="perk-icon"><svg aria-hidden="true"><use href="#i-badge"/></svg></span>
+            <span class="perk-tag tag-premium">Premium</span>
+          </div>
+          <h3>Premium Badge</h3>
+          <p>A badge next to your name that tells everyone you are part of the green room.</p>
+          <div class="perk-foot"><span>Profile flair</span><b>Included</b></div>
+        </article>
+
+        <article class="perk">
+          <div class="perk-top">
+            <span class="perk-icon"><svg aria-hidden="true"><use href="#i-ads"/></svg></span>
+            <span class="perk-tag tag-premium">Premium</span>
+          </div>
+          <h3>Fewer Ads</h3>
+          <p>Ad popups become much less frequent: one every 15 clicks instead of every 5.</p>
+          <div class="perk-foot"><span>15 clicks vs 5</span><b>Included</b></div>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="vaults-title">
+      <div class="section-head">
+        <div>
+          <span class="section-kicker">Aisle 02</span>
+          <h2 id="vaults-title">Unlockables</h2>
+        </div>
+        <p>The premium vaults. One pass opens all of them.</p>
+      </div>
+      <div class="grid">
+        <article class="perk">
+          <div class="perk-top">
+            <span class="perk-icon"><svg aria-hidden="true"><use href="#i-game"/></svg></span>
+            <span class="perk-tag tag-premium">Premium</span>
+          </div>
+          <h3>Blooket Hack Guide</h3>
+          <p>Fishing Frenzy, Gold Quest and Crypto Hack strategies, included with Premium.</p>
+          <div class="perk-foot"><span>Guide</span><b>Unlocked</b></div>
+        </article>
+
+        <article class="perk">
+          <div class="perk-top">
+            <span class="perk-icon"><svg aria-hidden="true"><use href="#i-film"/></svg></span>
+            <span class="perk-tag tag-premium">Premium</span>
+          </div>
+          <h3>150 Premium Movies</h3>
+          <p>The full premium movie library, unlocked instantly on your account.</p>
+          <div class="perk-foot"><span>Movies</span><b>Unlocked</b></div>
+        </article>
+
+        <article class="perk">
+          <div class="perk-top">
+            <span class="perk-icon"><svg aria-hidden="true"><use href="#i-tv"/></svg></span>
+            <span class="perk-tag tag-premium">Premium</span>
+          </div>
+          <h3>40 Premium TV Shows</h3>
+          <p>Every premium television series in the library, ready to stream.</p>
+          <div class="perk-foot"><span>TV</span><b>Unlocked</b></div>
+        </article>
+
+        <article class="perk">
+          <div class="perk-top">
+            <span class="perk-icon"><svg aria-hidden="true"><use href="#i-spark"/></svg></span>
+            <span class="perk-tag tag-premium">Premium</span>
+          </div>
+          <h3>40 Premium Anime</h3>
+          <p>The complete premium anime collection, with no locks in the way.</p>
+          <div class="perk-foot"><span>Anime</span><b>Unlocked</b></div>
+        </article>
+
+        <article class="perk">
+          <div class="perk-top">
+            <span class="perk-icon"><svg aria-hidden="true"><use href="#i-book"/></svg></span>
+            <span class="perk-tag tag-premium">Premium</span>
+          </div>
+          <h3>Premium Manga</h3>
+          <p>Premium manga series from the library, opened for members.</p>
+          <div class="perk-foot"><span>Manga</span><b>Unlocked</b></div>
+        </article>
+
+        <article class="perk">
+          <div class="perk-top">
+            <span class="perk-icon"><svg aria-hidden="true"><use href="#i-globe"/></svg></span>
+            <span class="perk-tag tag-premium">Premium</span>
+          </div>
+          <h3>Web Premium Access</h3>
+          <p>Premium-only folders, proxies and sites inside the Web hub.</p>
+          <div class="perk-foot"><span>Web hub</span><b>Unlocked</b></div>
+        </article>
+
+        <article class="perk">
+          <div class="perk-top">
+            <span class="perk-icon"><svg aria-hidden="true"><use href="#i-chip"/></svg></span>
+            <span class="perk-tag tag-premium">Premium</span>
+          </div>
+          <h3>AI Tools</h3>
+          <p>ChatGPT Free and Repixify, available in the Premium Hub.</p>
+          <div class="perk-foot"><span>AI</span><b>Unlocked</b></div>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="trade-title">
+      <div class="section-head">
+        <div>
+          <span class="section-kicker">Aisle 03</span>
+          <h2 id="trade-title">Trade &amp; earn</h2>
+        </div>
+        <p>No card? No problem. Trade or invite your way in.</p>
+      </div>
+      <div class="trade">
+        <article class="trade-card">
+          <span class="trade-icon"><svg aria-hidden="true"><use href="#i-trade"/></svg></span>
+          <h3>Trade Pok&eacute;mon cards</h3>
+          <p>Rare Pok&eacute;mon cards are accepted for lifetime Premium. Talk to the admin and bring your binder.</p>
+          <a class="btn btn-ghost" href="/blackmarket">Open Rewards <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        </article>
+        <article class="trade-card">
+          <span class="trade-icon"><svg aria-hidden="true"><use href="#i-gift"/></svg></span>
+          <h3>Invite 5, earn 15 days</h3>
+          <p>Invite five people who fill out the referral form and receive 15 days of Premium, free.</p>
+          <a class="btn btn-ghost" href="/blackmarket#referral">Referral form <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="faq-title" style="margin-bottom:56px">
+      <div class="section-head">
+        <div>
+          <span class="section-kicker">Counter</span>
+          <h2 id="faq-title">Market notes</h2>
+        </div>
+      </div>
+      <div class="faq">
+        <details open>
+          <summary>How do I get Premium? <span class="plus" aria-hidden="true"></span></summary>
+          <div class="answer">Open the Rewards page and choose Premium. You can pay the one-time $2 AUD price or arrange a Pok&eacute;mon card trade with the admin.</div>
+        </details>
+        <details>
+          <summary>What happens after I unlock it? <span class="plus" aria-hidden="true"></span></summary>
+          <div class="answer">Premium is attached to your signed-in account. Cosmetics appear in Settings under Premium Customization, and the premium hubs unlock without a separate code.</div>
+        </details>
+        <details>
+          <summary>Does Premium expire? <span class="plus" aria-hidden="true"></span></summary>
+          <div class="answer">The pass is lifetime access, one payment. Referral rewards are time-limited to 15 days but the paid pass does not renew or expire.</div>
+        </details>
+        <details>
+          <summary>Is Fire really free? <span class="plus" aria-hidden="true"></span></summary>
+          <div class="answer">Yes. The animated Fire cursor is the default for everyone. Premium members can switch to Electric, Water or Devil in Settings &rarr; Premium Customization.</div>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="foot-links">
+      <a href="/">&larr; Back to Hub</a>
+      <a href="/blackmarket">Rewards</a>
+      <a href="#market-title">Back to top</a>
+    </div>
+    <span class="foot-note">Green Market &middot; Galaxy Annihilating CHS Lab</span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var c = document.getElementById('particles-canvas');
+  if (!c) return;
+  var x = c.getContext('2d');
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var W = 0, H = 0, p = [], N = 46;
+  function resize() {
+    W = c.width = window.innerWidth;
+    H = c.height = window.innerHeight;
+  }
+  function make() {
+    p = [];
+    for (var i = 0; i < N; i++) {
+      p.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: Math.random() * 1.7 + 0.5,
+        vx: (Math.random() - 0.5) * 0.32,
+        vy: (Math.random() - 0.5) * 0.32,
+        a: Math.random() * 0.45 + 0.12
+      });
+    }
+  }
+  function draw(staticFrame) {
+    x.clearRect(0, 0, W, H);
+    var i, j, q;
+    for (i = 0; i < p.length; i++) {
+      q = p[i];
+      if (!staticFrame) {
+        q.x += q.vx;
+        q.y += q.vy;
+        if (q.x < 0) q.x = W; if (q.x > W) q.x = 0;
+        if (q.y < 0) q.y = H; if (q.y > H) q.y = 0;
+      }
+      x.beginPath();
+      x.arc(q.x, q.y, q.r, 0, Math.PI * 2);
+      x.fillStyle = 'rgba(74,222,128,' + q.a + ')';
+      x.fill();
+    }
+    for (i = 0; i < p.length; i++) {
+      for (j = i + 1; j < p.length; j++) {
+        var dx = p[i].x - p[j].x;
+        var dy = p[i].y - p[j].y;
+        var ds = Math.sqrt(dx * dx + dy * dy);
+        if (ds < 140) {
+          x.beginPath();
+          x.moveTo(p[i].x, p[i].y);
+          x.lineTo(p[j].x, p[j].y);
+          x.strokeStyle = 'rgba(52,211,153,' + ((1 - ds / 140) * 0.1) + ')';
+          x.lineWidth = 0.6;
+          x.stroke();
+        }
+      }
+    }
+    if (!staticFrame) requestAnimationFrame(function () { draw(false); });
+  }
+  function start() {
+    resize();
+    make();
+    draw(reduce);
+  }
+  window.addEventListener('resize', function () {
+    resize();
+    make();
+    if (reduce) draw(true);
+  });
+  start();
+})();
+</script>
+<script src="/fas-cursor.js?v=6" defer></script>
+</body>
+</html>

@@ -21,7 +21,7 @@ try {
 } catch {} // fallback: built-in fetch default config
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 2005;
 const SITE_DIR = __dirname;
 
 // ── 50+ realistic User-Agents ────────────────────────────────
@@ -215,6 +215,8 @@ document.addEventListener('submit',function(e){var f=e.target;if(!f)return;try{v
 var _wo=window.open;window.open=function(u,n,f){if(typeof u==='string')u=tp(u);return _wo.call(this,u,n,f);};
 /* location.assign / replace */
 try{var _la=Location.prototype.assign;Location.prototype.assign=function(u){return _la.call(this,tp(String(u)));};var _lr=Location.prototype.replace;Location.prototype.replace=function(u){return _lr.call(this,tp(String(u)));};}catch(e){}
+/* location.href setter — direct assignment (e.g. YouTube's JS) bypasses location.assign() */
+try{var _locDesc=Object.getOwnPropertyDescriptor(Location.prototype,'href');if(_locDesc&&_locDesc.set){Object.defineProperty(Location.prototype,'href',{get:_locDesc.get,set:function(v){try{v=tp(String(v));}catch(e){}return _locDesc.set.call(this,v);},configurable:true});}}catch(e){}
 /* Intercept HTMLImageElement / HTMLSourceElement / HTMLVideoElement src/poster setters
    so dynamically-set image URLs (like YouTube thumbnails) get proxied too */
 (function(){
@@ -341,6 +343,15 @@ function rewriteJs(js, base) {
   return js;
 }
 
+function isAssetUrl(url) {
+  try { return /\.(js|mjs|cjs|css)$/i.test(new URL(url).pathname); } catch(e) { return false; }
+}
+
+function assetErrorPlaceholder(ext, rawUrl) {
+  if (ext === 'css') return `/* Resource failed to load */`;
+  return `// Resource failed to load`;
+}
+
 // ── Resource type detection ──────────────────────────────────
 function detectResourceType(urlPath) {
   const p = urlPath.split('?')[0].toLowerCase();
@@ -365,30 +376,31 @@ const RESOURCE_HEADERS = {
   fetch: { 'Accept': 'application/json,text/plain,*/*', 'Sec-Fetch-Dest': 'empty', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'same-origin' },
 };
 
-// ── URL preprocessing: rewrite IP-blocked sites to working alternatives ──────
-// piped.video is a YouTube-compatible frontend reachable from Replit's IP.
-// URL format mirrors YouTube 1-to-1 so all paths map cleanly.
-function rewriteYouTubeToPiped(rawUrl) {
+// ── URL preprocessing: rewrite IP-blocked sites to simpler proxies ──
+// YouTube is rewritten to embed mode so it works through the server-side proxy.
+function rewriteYouTubeEmbed(rawUrl) {
   try {
     const u = new URL(rawUrl);
     const host = u.hostname.toLowerCase();
-    // Don't rewrite if already on piped.video (avoid loops)
-    if (host.includes('piped.video')) return rawUrl;
-    const v = u.searchParams.get('v');
-    if (v) return `https://piped.video/watch?v=${v}${u.searchParams.get('t') ? '&t=' + u.searchParams.get('t') : ''}`;
-    const list = u.searchParams.get('list');
-    if (list) return `https://piped.video/playlist?list=${list}`;
-    const q = u.searchParams.get('search_query') || u.searchParams.get('q');
-    if (q) return `https://piped.video/results?search_query=${encodeURIComponent(q)}`;
-    // Shorts → watch page on piped
-    const shorts = u.pathname.match(/^\/shorts\/([^/?#]+)/);
-    if (shorts) return `https://piped.video/watch?v=${shorts[1]}`;
-    // Channel / user pages
-    if (u.pathname.startsWith('/@') || u.pathname.startsWith('/c/') || u.pathname.startsWith('/user/') || u.pathname.startsWith('/channel/')) {
-      return `https://piped.video${u.pathname}`;
+    const isYT = host.includes('youtube.com') || host === 'youtu.be';
+    if (!isYT) return rawUrl;
+    // youtu.be short links
+    if (host === 'youtu.be') {
+      const id = u.pathname.replace(/^\//, '').split('/')[0];
+      if (id) return `https://www.youtube.com/embed/${id}?autoplay=1&rel=0`;
+      return 'https://www.youtube.com/tv';
     }
-    // Homepage / anything else
-    return 'https://piped.video/';
+    // Single video → use embed (simpler page, works through proxy)
+    const v = u.searchParams.get('v');
+    if (v) return `https://www.youtube.com/embed/${v}?autoplay=1&rel=0${u.searchParams.get('t') ? '&start=' + u.searchParams.get('t').replace(/[^0-9]/g, '') : ''}`;
+    // Shorts → embed
+    const shorts = u.pathname.match(/^\/shorts\/([^/?#]+)/);
+    if (shorts) return `https://www.youtube.com/embed/${shorts[1]}?autoplay=1&rel=0`;
+    // Search → use YouTube search results
+    const q = u.searchParams.get('search_query') || u.searchParams.get('q');
+    if (q) return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+    // Homepage / everything else → use YouTube TV (much simpler SPA)
+    return 'https://www.youtube.com/tv';
   } catch(e) { return rawUrl; }
 }
 
@@ -396,9 +408,6 @@ function preprocessUrl(rawUrl) {
   try {
     const u = new URL(rawUrl);
     const host = u.hostname.toLowerCase();
-    if (host === 'youtube.com' || host === 'www.youtube.com' || host === 'm.youtube.com' || host === 'youtu.be') {
-      return rewriteYouTubeToPiped(rawUrl);
-    }
     if (host === 'reddit.com' || host === 'www.reddit.com') return rawUrl.replace(/^https?:\/\/(www\.)?reddit\.com/, 'https://old.reddit.com');
   } catch(e) {}
   return rawUrl;
@@ -409,7 +418,12 @@ function buildUpstreamHeaders(clientReq, targetUrl, isRetry, noCookies) {
   const isYouTube = targetUrl.hostname.includes('youtube.com') || targetUrl.hostname.includes('youtu.be') || targetUrl.hostname.includes('ytimg.com') || targetUrl.hostname.includes('googlevideo.com') || targetUrl.hostname.includes('yt3.ggpht.com');
   const isDDG = targetUrl.hostname.includes('duckduckgo.com') || targetUrl.hostname.includes('ddg.gg');
 
-  const ua = isYouTube
+  // For YouTube TV, use a PlayStation UA so it serves the TV layout (not mobile which redirects to m.youtube.com)
+  const isYouTubeTV = isYouTube && targetUrl.pathname.startsWith('/tv');
+
+  const ua = isYouTubeTV
+    ? 'Mozilla/5.0 (PlayStation 5 3.00) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.291 Safari/537.36'
+    : isYouTube
     ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
     : pickUA();
 
@@ -437,7 +451,7 @@ function buildUpstreamHeaders(clientReq, targetUrl, isRetry, noCookies) {
     'Connection': 'keep-alive',
     'sec-ch-ua': secChUa,
     'sec-ch-ua-mobile': isMobile ? '?1' : '?0',
-    'sec-ch-ua-platform': ua.includes('Windows') ? '"Windows"' : ua.includes('Mac') ? '"macOS"' : ua.includes('Linux') && !isMobile ? '"Linux"' : ua.includes('Android') ? '"Android"' : '"iOS"',
+    'sec-ch-ua-platform': ua.includes('PlayStation') ? '"PlayStation 5"' : ua.includes('Windows') ? '"Windows"' : ua.includes('Mac') ? '"macOS"' : ua.includes('Linux') && !isMobile ? '"Linux"' : ua.includes('Android') ? '"Android"' : '"iOS"',
     ...rh,
   };
 
@@ -518,7 +532,9 @@ async function decodeBody(response) {
 // ── PROXY ENDPOINT ───────────────────────────────────────────
 app.all('/px', async (req, res) => {
   let rawUrl = req.query.url;
-  if (!rawUrl) return res.status(400).send('Missing url parameter');
+  // No url param: a site's stray <script src="px"> (or similar) request must get valid JS,
+  // otherwise the browser parses the HTML error page and throws "Unexpected token '<'".
+  if (!rawUrl) return res.type('application/javascript').send('/* no-op */');
   if (!/^https?:\/\//i.test(rawUrl)) rawUrl = 'https://' + rawUrl;
   let targetUrl;
   try { targetUrl = new URL(rawUrl); } catch { return res.status(400).send('Invalid URL'); }
@@ -547,20 +563,16 @@ app.all('/px', async (req, res) => {
     }
   }
 
-  // ── YouTube gateway: serve piped.video in a direct iframe (no server-side proxy) ──
-  // YouTube blocks all requests from Replit's data-center IPs.
-  // piped.video is a 1-to-1 YouTube-compatible frontend with no X-Frame-Options restrictions.
-  // We serve a local gateway page; the user's browser loads piped.video directly.
-  const isYTDomain = targetUrl.hostname.includes('piped.video') ||
-    targetUrl.hostname.includes('youtube.com') || targetUrl.hostname.includes('youtu.be') ||
-    targetUrl.hostname.includes('m.youtube.com');
-  if (resourceType === 'document' && isYTDomain && !targetUrl.hostname.includes('piped.video')) {
-    // YouTube blocks all Replit data-center IPs server-side.
-    // We issue a plain 302 to piped.video — no HTML, no inject script, no proxy in the middle.
-    // The browser/iframe follows the redirect and loads piped.video directly.
-    const pipedUrl = rewriteYouTubeToPiped(rawUrl);
-    res.setHeader('Cache-Control', 'no-store');
-    return res.redirect(302, pipedUrl);
+  // ── YouTube: rewrite to embed for better proxy compatibility ──
+  // YouTube's full site is complex and often blocks server-side proxy requests.
+  // We rewrite to the simpler embed version which works through the proxy.
+  const isYTDomain = targetUrl.hostname.includes('youtube.com') || targetUrl.hostname.includes('youtu.be') || targetUrl.hostname.includes('m.youtube.com');
+  if (resourceType === 'document' && isYTDomain) {
+    const embedUrl = rewriteYouTubeEmbed(rawUrl);
+    try {
+      targetUrl = new URL(embedUrl);
+      rawUrl = embedUrl;
+    } catch(e) {}
   }
 
   const maxRetries = resourceType === 'document' ? 2 : 0;
@@ -654,25 +666,30 @@ app.all('/px', async (req, res) => {
         // Short / non-HTML — show our styled error page
         res.removeHeader('content-length'); res.removeHeader('content-encoding');
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        const safe = rawUrl.replace(/</g,'&lt;').replace(/"/g,'&quot;');
         return res.status(200).send(`<!DOCTYPE html><html><head><title>Cannot Load Page</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,sans-serif;background:#0d0e14;color:#e8e9f0;display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:14px;padding:24px;text-align:center}.icon{font-size:38px}.lbl{color:#f59e0b;font-size:20px;font-weight:700}p{color:#888;font-size:14px;max-width:460px;line-height:1.6}.url{color:#aaa;font-size:11px;word-break:break-all;max-width:460px;background:#161b22;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.08)}.tip{font-size:12px;color:#4a9eff;max-width:460px;background:rgba(74,158,255,0.07);padding:10px 16px;border-radius:8px;border:1px solid rgba(74,158,255,0.15)}.btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:rgba(255,255,255,0.7);text-decoration:none;font-size:13px}.btn:hover{background:rgba(255,255,255,0.12);color:#fff}.btn.red{background:rgba(229,57,53,0.12);border-color:rgba(229,57,53,0.3);color:#ef5350}</style>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,sans-serif;background:#0d0e14;color:#e8e9f0;display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:14px;padding:24px;text-align:center}.icon{font-size:38px}.lbl{color:#f59e0b;font-size:20px;font-weight:700}p{color:#888;font-size:14px;max-width:460px;line-height:1.6}.tip{font-size:12px;color:#4a9eff;max-width:460px;background:rgba(74,158,255,0.07);padding:10px 16px;border-radius:8px;border:1px solid rgba(74,158,255,0.15)}.btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:rgba(255,255,255,0.7);text-decoration:none;font-size:13px}.btn:hover{background:rgba(255,255,255,0.12);color:#fff}</style>
 </head><body>
 <div class="icon">&#9888;&#65039;</div>
 <div class="lbl">Error ${response.status} &mdash; Cannot Load Page</div>
 <p>${msg}</p>
-<div class="url">${safe}</div>
-<div class="tip">&#128161; Try opening directly in a new tab, or retry — sometimes sites temporarily block proxies.</div>
+<div class="tip">&#128161; Try again — sometimes sites temporarily block proxies.</div>
 <div class="btns">
   <a class="btn" href="javascript:history.back()">&#8592; Go Back</a>
-  <a class="btn red" href="${safe}" target="_blank" rel="noopener">Open Directly &#8599;</a>
   <a class="btn" href="/px?url=${encodeURIComponent(rawUrl)}">&#8635; Retry</a>
 </div>
 </body></html>`);
       }
 
       res.status(response.status);
+
+      // If a JS/CSS asset returned HTML, it's an error page from the upstream
+      if ((ct === 'text/html' || ct === 'application/xhtml+xml') && isAssetUrl(rawUrl)) {
+        const ext = (rawUrl.match(/\.(js|mjs|cjs|css)$/i)?.[1] || 'js').toLowerCase();
+        const mime = ext === 'css' ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8';
+        res.setHeader('Content-Type', mime);
+        return res.send(assetErrorPlaceholder(ext, rawUrl));
+      }
 
       // HTML — rewrite and inject proxy (use text() — Node fetch auto-decompresses)
       if (ct === 'text/html' || ct === 'application/xhtml+xml') {
@@ -732,15 +749,12 @@ app.all('/px', async (req, res) => {
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,sans-serif;background:#0d0e14;color:#e8e9f0;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;padding:24px}
 h2{color:#e53935;font-size:22px}p{color:#888;font-size:14px;max-width:480px;text-align:center;line-height:1.6}
-.url{color:#aaa;font-size:12px;word-break:break-all;max-width:480px;background:#161b22;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.08)}
 a{color:#58a6ff;font-size:14px;text-decoration:none}a:hover{text-decoration:underline}
 .btn{display:inline-block;margin-top:8px;padding:8px 20px;border-radius:8px;background:#21262d;color:#c9d1d9;border:1px solid #30363d;cursor:pointer;font-size:13px;text-decoration:none}
 .btn:hover{background:#30363d}
 </style></head><body>
 <h2>${isTimeout ? 'Request Timed Out' : 'Could not load page'}</h2>
 <p>${isTimeout ? 'The request took too long. The site may be slow or blocking proxies.' : 'This site could not be loaded through the proxy.'}</p>
-<div class="url">${rawUrl.replace(/</g,'&lt;')}</div>
-<p style="font-size:12px;color:#555">${(err.message || '').replace(/</g,'&lt;')}</p>
 <a class="btn" href="javascript:history.back()">Go back</a>
 <a class="btn" href="/px?url=${encodeURIComponent(rawUrl)}" style="margin-left:8px">Retry</a>
 </body></html>`
@@ -777,17 +791,44 @@ app.options('/px', (req, res) => {
 // ── Static files ──────────────────────────────────────────────
 app.use(express.static(SITE_DIR, {
   setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.html') || filePath.endsWith('inject.js')) res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    if (filePath.endsWith('.html') || filePath.endsWith('inject.js') || filePath.endsWith('.js')) res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   }
 }));
 
-app.get('/blackmarket', (req, res) => res.sendFile(path.join(SITE_DIR, 'blackmarket.html')));
-app.get('/proxy', (req, res) => res.sendFile(path.join(SITE_DIR, 'proxy.html')));
-app.get('/proxy1', (req, res) => res.sendFile(path.join(SITE_DIR, 'proxy1.html')));
-app.get('/proxy2', (req, res) => res.sendFile(path.join(SITE_DIR, 'proxy2.html')));
+app.get('/blackmarket', (req, res) =>
+  res
+    .setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+    .setHeader('Expires', '0')
+    .setHeader('Pragma', 'no-cache')
+    .sendFile(path.join(SITE_DIR, 'blackmarket.html')));
 
-app.get('*', (req, res) => res.sendFile(path.join(SITE_DIR, 'index.html')));
+app.get(['/market', '/market/'], (req, res) =>
+  res
+    .setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+    .setHeader('Expires', '0')
+    .setHeader('Pragma', 'no-cache')
+    .sendFile(path.join(SITE_DIR, 'market.html')));
+
+app.get('/favicon.ico', (req, res) => res.redirect('/icon-192.png'));
+
+// SPA catch-all — serve index.html only for navigation routes, not missing assets
+app.get('*', (req, res) => {
+  const ext = path.extname(req.path).toLowerCase();
+  if (ext && ['.js', '.mjs', '.css', '.json', '.html', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.woff', '.woff2', '.ttf', '.mp3', '.mp4', '.webm'].includes(ext)) {
+    return res.status(404).type('text/plain').send('Not found');
+  }
+  res.sendFile(path.join(SITE_DIR, 'index.html'));
+});
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`FasahatHub running on http://0.0.0.0:${PORT}`);
+  console.log(`Galaxy Annihilating CHS Ballistic Missile running on http://0.0.0.0:${PORT}`);
+});
+
+// Also listen on port 1050
+const PORT2 = 1050;
+app.listen(PORT2, '0.0.0.0', () => {
+  console.log(`Also available on http://0.0.0.0:${PORT2}`);
 });

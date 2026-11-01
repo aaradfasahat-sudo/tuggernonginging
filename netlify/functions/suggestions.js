@@ -24,6 +24,8 @@ exports.handler = async (event) => {
   }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
     const r = await fetch(
       'https://duckduckgo.com/ac/?q=' + encodeURIComponent(q) + '&type=list',
       {
@@ -32,9 +34,10 @@ exports.handler = async (event) => {
           'Accept': 'application/json',
           'Accept-Language': 'en-US,en;q=0.9',
         },
-        signal: AbortSignal.timeout(4000),
+        signal: controller.signal,
       }
     );
+    clearTimeout(timeoutId);
     if (!r.ok) return { statusCode: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }, body: '[]' };
 
     const data = await r.json();
